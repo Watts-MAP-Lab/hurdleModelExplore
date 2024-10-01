@@ -4,7 +4,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --chdir=/home/rosena/hurdleModelExplore/
-#SBATCH --output=/home/arosen/CBCL_call.txt
+#SBATCH --output=/home/rosena/CBCL_call.txt
 #SBATCH --core-spec=12
 
 module purge
