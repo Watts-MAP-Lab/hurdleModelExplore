@@ -35,7 +35,7 @@ for(i in 1:length(all_item_position)){
 ## Now run one of these through the hurdle model in julia
 cl <- makeCluster(12)
 registerDoParallel(cl)
-all.mods <- foreach(i = 1:length(all_item_position), .packages = c("mirt", "catIrt", "dplyr")) %dopar%{
+all.mods <- foreach(i = 1:length(all_item_position)) %dopar%{
   in_resp <- all_data[[i]]$rep_vals
   in_resp <- in_resp[complete.cases(in_resp),]
   in_tabs <- all_data[[i]]$crosstab
