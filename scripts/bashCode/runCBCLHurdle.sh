@@ -5,7 +5,9 @@
 #SBATCH --ntasks=1
 #SBATCH --chdir=/home/rosena/hurdleModelExplore/
 #SBATCH --output=/home/rosena/CBCL_call.txt
-#SBATCH --core-spec=12
+#SBATCH --ntasks=12
+#SBATCH --exclusive
+#SBATCH --mem=36G
 
 module purge
 module load GCC/11.3.0
