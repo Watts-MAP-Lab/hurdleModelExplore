@@ -33,7 +33,7 @@ for(i in 1:length(all_item_position)){
 
 
 ## Now run one of these through the hurdle model in julia
-cl <- makeCluster(4)
+cl <- makeCluster(12)
 registerDoParallel(cl)
 all.mods <- foreach(i = 1:length(all_item_position), .packages = c("mirt", "catIrt", "dplyr")) %dopar%{
   in_resp <- all_data[[i]]$rep_vals

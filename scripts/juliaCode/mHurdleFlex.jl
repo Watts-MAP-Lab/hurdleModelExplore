@@ -93,9 +93,9 @@ end
 
 function ll_grm_ip(p, testdata, theta, r)
     
-    nParamsPerItemGRM = maximum(maximum(eachcol(data_out)))-1; 
+    nParamsPerItemGRM = maximum(maximum(eachcol(testdata))); 
     nParamsPerItem2PL = 2;
-    ncatgrm = maximum(maximum(eachcol(data_out))) 
+    ncatgrm = maximum(maximum(eachcol(testdata))) 
     nitemsgrm=nitems=size(testdata)[2]
     
     a = fill(-1.0, nitems, 1)
@@ -150,6 +150,7 @@ function ll_grm_ip(p, testdata, theta, r)
         error("LL is inf")
     end
     #@info "LL val is: $l"
+    #@info "params are $p"
 
     return(l)
     
@@ -197,13 +198,13 @@ p[nitems[1]*nParmsPerItemGRM[1] + nitems[1]*nParmsPerItem2PL[1] + 1] = rho_exp
 
 ## Now optimize these values
 
-## FIrst run single shot ll test
+## First run single shot ll test
+println(ll_grm_ip(p, data_out, theta, data_out2))
 
 ## Now optimize
 ## Now write the csv here
 #outputRand = rand(Int)
 #outputFile = ("/tmp/")
-println(ll_grm_ip(p, data_out, theta, data_out2))
 
 @time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
 
