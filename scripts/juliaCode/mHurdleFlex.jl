@@ -3,6 +3,8 @@ using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppr
 ## First load the data
 in_resp = ARGS[1]
 in_tabs = ARGS[2]
+#in_resp = "/home/arosen/Documents/hurdleModelExplore/data/testOSF.csv"
+#in_tabs = "/home/arosen/Documents/hurdleModelExplore/data/testOSF2.csv"
 data_out = CSV.File(in_resp) |> DataFrame
 data_out2 = CSV.File(in_tabs) |> DataFrame
 
@@ -94,7 +96,7 @@ end
 function ll_grm_ip(p, testdata, theta, r)
     
     nParamsPerItemGRM = maximum(maximum(eachcol(testdata))); 
-    nParamsPerItem2PL = 2;
+    nParamsPerItem2PL = 2
     ncatgrm = maximum(maximum(eachcol(testdata))) 
     nitemsgrm=nitems=size(testdata)[2]
     
@@ -105,15 +107,22 @@ function ll_grm_ip(p, testdata, theta, r)
     rho_exp = 0
 
     ## Fix wild values here
-    p[p.<=-3] .= [-3]
-    p[p.>4] .= [3]
+    p[p.<=-8] .= [-8]
+    p[p.>8] .= [8]
     
+    ## Now get the flag index here
+    flag_index = fill(0, size(p)[1], 1);
+
     for j in 1:nitemsgrm
-        a[j, 1] = p[(j - 1) * nParamsPerItemGRM + 1]
-        a_z[j, 1] = p[nitems * nParamsPerItemGRM + (j - 1) * nParamsPerItem2PL + 1]
-        b_z[j, 1] = p[nitems * nParamsPerItemGRM + (j - 1) * nParamsPerItem2PL + 2]
-        for k in 1:(ncatgrm - 1)
-            b[j, k] = p[(j - 1) * nParamsPerItemGRM + 1 + k]
+        a[j, 1] = p[(j - 1) * nParmsPerItemGRM + 1]
+        flag_index[(j - 1) * nParmsPerItemGRM + 1] = flag_index[(j - 1) * nParmsPerItemGRM + 1] + 1 
+        a_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1]+ 1]
+        flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 1] = flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 1] + 1
+        b_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2]
+        flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2] = flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2] + 1
+        for k in 1:(ncatgrm-1)
+            b[j, k] = p[(j - 1) * nParmsPerItemGRM + 1 + k]
+            flag_index[(j - 1) * nParmsPerItemGRM + 1 + k] = flag_index[(j - 1) * nParmsPerItemGRM + 1 + k] + 1
         end
     end
 
@@ -177,7 +186,7 @@ b = rand(nitems, nParmsPerItemGRM);
 a_z = rand(size(data_out)[2]);
 b_z = rand(size(data_out)[2]);
 
-rho_exp = 0.1;
+rho_exp = 0.2;
 
 paramGRM = nitems*nParmsPerItemGRM
 param2PL = nitems*nParmsPerItem2PL

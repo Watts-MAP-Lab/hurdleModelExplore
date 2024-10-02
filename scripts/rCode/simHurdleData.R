@@ -54,7 +54,7 @@ sim2PLMultiMod <- function(muVals = c(0,0), varCovMat = diag(2), a = matrix(rnor
 genDiffGRM <- function(num_items= 20, num_categories=5){
     diffs <- t(apply(matrix(runif(num_items*(num_categories-1), .3, 1), num_items), 1, cumsum))
     diffs <- -(diffs - rowMeans(diffs))
-    d <- diffs + rnorm(20)
+    d <- diffs + rnorm(num_items)
     d <- t(apply(d, 1, sort))
     return(d)
 }
@@ -233,7 +233,14 @@ n <- 3000
 ## Now call the julia script
 #val <- system("julia ./scripts/juliaCode/mHurdleFlexQ.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
 
-simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 5), muVals = c(0,0), varCovMat, 3000)
+out.datA <- simulate_hurdle_responses(a = runif(5, min=.5,  max=2),b = rnorm(5),a_z = runif(5, min=1, max=3), b_z = genDiffGRM(num_items = 5, num_categories = 4), muVals = c(0,0), varCovMat, 5000)
+out.dat <- out.datA$responses
+write.csv(out.dat, file="./data/testSimDat.csv", quote=F, row.names=F)
+out.datT <- out.datA$tabs
+write.csv(out.dat, file="./data/testSimDat2.csv", quote=F, row.names=F)
+val <- system("julia ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
+
+
 simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 6), muVals = c(0,0), varCovMat, 3000)
 simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 7), muVals = c(0,0), varCovMat, 3000)
 simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 8), muVals = c(0,0), varCovMat, 3000)
@@ -261,5 +268,7 @@ crosstab <- rep_pats %>%
         summarise(Count = n(), .groups = "drop") %>%
         ungroup()
 write.csv(crosstab, file="./data/testOSF2.csv", quote=F, row.names = FALSE)
-val <- system("julia ./scripts/juliaCode/mHurdleFlex.jl ./data/testOSF.csv ./data/testOSF2.csv", intern = TRUE)
+val <- system("julia ./scripts/juliaCode/mHurdleFlexQ.jl ./data/testOSF.csv ./data/testOSF2.csv", intern = TRUE)
+
+
 saveRDS(val, file = "./data/osfRepWithinR.csv")

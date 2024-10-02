@@ -33,7 +33,7 @@ for(i in 1:length(all_item_position)){
 
 
 ## Now run one of these through the hurdle model in julia
-cl <- makeCluster(12)
+cl <- makeCluster(3)
 registerDoParallel(cl)
 all.mods <- foreach(i = 1:length(all_item_position)) %dopar%{
   in_resp <- all_data[[i]]$rep_vals
@@ -48,7 +48,7 @@ all.mods <- foreach(i = 1:length(all_item_position)) %dopar%{
   ## Now run model in julia
   sys.command <- paste("julia ./scripts/juliaCode/mHurdleFlex.jl ", out_fn1, out_fn2, sep=' ')
   val <- system(sys.command, intern = TRUE)
-  out_fn3 <- paste("./data/CBCL_scale_",i,"_Params.csv", sep='')
+  out_fn3 <- paste("./data/CBCL_scale_",i,"_Params.RData", sep='')
   saveRDS(val, file = out_fn3)
   val
 }
