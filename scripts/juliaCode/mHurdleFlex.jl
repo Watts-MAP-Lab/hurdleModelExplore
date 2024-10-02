@@ -14,13 +14,13 @@ println("Processing: ", in_resp)
 
 ## Create prob estimate for GRM portion
 function trace_line_pts_grm(a, b, theta)
-    n_categories = size(b)[2]
+    n_categories = size(b)[2] + 1
     itemtraceGRM = zeros(size(a)[1], size(theta)[1], n_categories)
     for j in 1:size(a, 1)
         for k in 1:n_categories
             if k == 1
                 itemtraceGRM[j, :,1] .= 1 .- exp.(a[j, :] .* (theta[:, 2] .- b[j, k])) ./ (1 .+ exp.(a[j, :] .* (theta[:, 2] .- b[j, k])))
-            elseif k > 1 
+            elseif k > 1 && k < n_categories 
                 itemtraceGRM[j, :,k] .= exp.(a[j, :] .* (theta[:, 2] .- b[j, k-1])) ./ (1 .+ exp.(a[j, :] .* (theta[:, 2] .- b[j, k-1]))) .- exp.(a[j, :] .* (theta[:, 2] .- b[j, k])) ./ (1 .+ exp.(a[j, :] .* (theta[:, 2] .- b[j, k])))
             elseif k == n_categories
                 itemtraceGRM[j, :,k] .= exp.(a[j, :] .* (theta[:, 2] .- b[j, k-1])) ./ (1 .+ exp.(a[j, :] .* (theta[:, 2] .- b[j, k-1])))
@@ -42,10 +42,11 @@ end
 
 ## Combine 2PL and GRM model estimates here
 function trace_line_pts(a, b, a_z, b_z, theta)
-    n_categories = size(b_z)[2]
-    itemtrace = zeros(size(a)[1],size(theta)[1],4)
+    n_categories = size(b)[2]+2
+    itemtrace = zeros(size(a)[1],size(theta)[1],n_categories)
     for j in 1:size(a)[1]
-        for k in 0:n_categories
+        for k in 0:n_categories-1
+            #print(k)
             if k == 0
                 itemtrace[j, :,k+1] .= 1 .- trace_line_pts_2PL(a_z, b_z, theta)[j, :]
             elseif k > 0
@@ -101,7 +102,7 @@ function ll_grm_ip(p, testdata, theta, r)
     nitemsgrm=nitems=size(testdata)[2]
     
     a = fill(-1.0, nitems, 1)
-    b = fill(-1.0, nitems, nParamsPerItemGRM)
+    b = fill(-1.0, nitems, nParamsPerItemGRM-1)
     a_z = fill(-1.0, nitems, 1)
     b_z = fill(-1.0, nitems, 1)
     rho_exp = 0
@@ -180,7 +181,7 @@ theta = [d[i][j] for i in 1:length(d), j in 1:length(d[1])];
 
 ## Now initialize random start points for GRM postion of model
 a = rand(nitems);
-b = rand(nitems, nParmsPerItemGRM);
+b = rand(nitems, nParmsPerItemGRM-1);
 
 ## Now intitialize random start points for the 2PL portion of model
 a_z = rand(size(data_out)[2]);
