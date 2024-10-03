@@ -1,12 +1,11 @@
 #!/bin/bash
 #
-#SBATCH --partition=normal
-#SBATCH --mem=4G
+#SBATCH --mem=6G
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --output=r_output_%J_%a.txt
 #SBATCH --error=r_error_%J_%a.txt
-#SBATCH --time=12:00:00
+#SBATCH --time=16:00:00
 #SBATCH --job-name=cbcl_julia_submit
 #SBATCH --mail-user=adon.rosen@vanderbilt.edu
 #SBATCH --mail-type=ALL
@@ -19,4 +18,4 @@ echo ${SLURM_ARRAY_TASK_ID}
 echo "Submitting job"
 
 
-julia scripts/juliaCode/mHurdleFlex.jl data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Resp.csv data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Tabs.csv 
+julia --threads 3 scripts/juliaCode/mHurdleFlex.jl data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Resp.csv data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Tabs.csv 
