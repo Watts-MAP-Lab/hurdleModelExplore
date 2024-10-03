@@ -1,4 +1,4 @@
-using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppressor
+using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppressor, Base.Threads
 
 ## First load the data
 in_resp = ARGS[1]
@@ -111,19 +111,12 @@ function ll_grm_ip(p, testdata, theta, r)
     p[p.<=-8] .= [-8]
     p[p.>8] .= [8]
     
-    ## Now get the flag index here
-    flag_index = fill(0, size(p)[1], 1);
-
     for j in 1:nitemsgrm
         a[j, 1] = p[(j - 1) * nParmsPerItemGRM + 1]
-        flag_index[(j - 1) * nParmsPerItemGRM + 1] = flag_index[(j - 1) * nParmsPerItemGRM + 1] + 1 
         a_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1]+ 1]
-        flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 1] = flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 1] + 1
         b_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2]
-        flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2] = flag_index[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2] + 1
         for k in 1:(ncatgrm-1)
             b[j, k] = p[(j - 1) * nParmsPerItemGRM + 1 + k]
-            flag_index[(j - 1) * nParmsPerItemGRM + 1 + k] = flag_index[(j - 1) * nParmsPerItemGRM + 1 + k] + 1
         end
     end
 
@@ -138,7 +131,7 @@ function ll_grm_ip(p, testdata, theta, r)
         posterior[i] = multivariate_normal_pdf(theta[i,:], [0,0], [1.0 rho; rho 1.0])
     end
     posterior_orig = posterior  
-    for i in 1:size(r)[1]
+    @threads for i in 1:size(r)[1]
         posterior = posterior_orig
         for item in 1:nitems
             x = Int(r[i, item])   
@@ -216,6 +209,6 @@ println(ll_grm_ip(p, data_out, theta, data_out2))
 #outputRand = rand(Int)
 #outputFile = ("/tmp/")
 
-@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
+@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,GradientDescent(),Optim.Options(g_tol = 5e-3, iterations=350_000, show_trace=true, show_every=5))
 
 println(Optim.minimizer(h))
