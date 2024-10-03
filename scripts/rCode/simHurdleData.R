@@ -125,30 +125,31 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
     ## First obtain the theta values
     theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
     numItems = length(a)
-    num_categories = dim(b_z)[2] + 1
+    num_categories = dim(b)[2] + 2
     ## First go through an obtain all of the repsone probabilities for the 2PL protion of the model
     ## This is the susceptibility factor
     # Prep a matrix to store all of the prob of endorsments here
-    responseProb2PL = matrix(NA, nrow = N, ncol = length(b))
+    responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
     for(i in 1:N){
         for(j in 1:length(a)){
-            p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
-            #p = 1-p
-            responseProb2PL[i,j] = p
+            #p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
+            p_z = 1 - exp(a_z[j] * (theta[i, 1] - b_z[j])) / (1 + exp(a_z[j] * (theta[i, 1] - b_z[j])))
+            p_1 = 1 - p_z
+            responseProb2PL[i,j] = p_1
         }
     }
     ## Now go through and obtain the response prob from the GRM portion
-    initVector <- rep(NA, (N*numItems*num_categories))
-    responseProbGRM = array(initVector, c(N, numItems, num_categories))
+    initVector <- rep(NA, (N*numItems*(num_categories-1)))
+    responseProbGRM = array(initVector, c(N, numItems, (num_categories-1)))
     ## Now go through and 4estimate response probs from the GRM
     for (j in 1:numItems) {
-        aj <- a_z[j]  # Discrimination parameter for item j
-        bj <- b_z[j,]  # Threshold parameters for item j
+        aj <- a[j]  # Discrimination parameter for item j
+        bj <- b[j,]  # Threshold parameters for item j
         # Loop through examinees
         for (i in 1:N) {
             category_probs <- itemtraceGRM(aj, bj, theta[i,2])  
             # Generate response based on category probabilities
-            for(k in 1:num_categories){
+            for(k in 1:num_categories-1){
                 responseProbGRM[i, j,k] <- category_probs[k]
             }
         }
@@ -162,9 +163,9 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
             tmp_probs <- rep(NA, num_categories)
             for(k in 1:num_categories){
                 if(k == 1){
-                    tmp_probs[k] <- 1-responseProb2PL[i,j]
+                    tmp_probs[k] <- 1 - responseProb2PL[i,j]
                 }else{
-                    tmp_probs[k] <- (responseProb2PL[i,j]) * responseProbGRM[i,j,k]
+                    tmp_probs[k] <- ((responseProb2PL[i,j])) * responseProbGRM[i,j,k-1]
                 }
             }
             responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
@@ -192,7 +193,7 @@ return_Mod_Params <- function(juliaOutput, dataIn){
     ## Now do the GRM portion
     ncatgrm <- diff(range(dataIn))
     ## First idenitfy the total number of difficult params needed
-    irtGRMParam <- matrix(NA, nrow=dim(dataIn)[2], ncol=ncatgrm+1)
+    irtGRMParam <- matrix(NA, nrow=dim(dataIn)[2], ncol=ncatgrm)
 
     ## Clean up the Julia output here
     list_index <- length(juliaOutput)
@@ -209,19 +210,18 @@ return_Mod_Params <- function(juliaOutput, dataIn){
     nParmsPerItemGRM = ncatgrm
     nParmsPerItem2PL = 2
     nitemsgrm = nitems
-    for(j in 1:nitems){ 
-        irtGRMParam[j,1] = out_params[(j-1)*nParmsPerItemGRM + 1]
-        irt2PLParam[j,1] = out_params[nitemsgrm[1]*nParmsPerItemGRM[1] + (j-1)*nParmsPerItem2PL[1] + 1]
-        irt2PLParam[j,2] = out_params[nitemsgrm[1]*nParmsPerItemGRM[1] + (j-1)*nParmsPerItem2PL[1] + 2]
-        for(k in 1:(ncatgrm-1)){
-            irtGRMParam[j,k+1] = out_params[(j-1)*nParmsPerItemGRM[1] + 1 + k]
-        } 
+    for (j in 1:nitems) {
+        irtGRMParam[j,1] <- out_params[(j-1)*nParmsPerItemGRM + 1]
+        irt2PLParam[j,1] <- out_params[nitemsgrm*nParmsPerItemGRM + (j-1)*nParmsPerItem2PL + 1]
+        irt2PLParam[j,2] <- out_params[nitemsgrm*nParmsPerItemGRM + (j-1)*nParmsPerItem2PL + 2]
+        for (k in 1:(ncatgrm-1)){
+            irtGRMParam[j,k+1] <- out_params[(j-1)*nParmsPerItemGRM + 1 + k]
+        }
     }
 
 }
-
-varCovMat <- matrix(c(1,.2,.2,1), nrow=2)
-n <- 3000
+varCovMat <- matrix(c(1,.4,.4,1), nrow=2)
+n <- 5000
 #simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=.5, max=2), b_z = genDiffGRM(num_items = 20, num_categories = 3), muVals = c(0,0), varCovMat, 3000)
 #simulate_hurdle_responses(a = runif(5, min=.5,  max=2),b = rnorm(5),a_z = runif(5, min=1, max=3), b_z = genDiffGRM(num_items = 5, num_categories = 5), muVals = c(0,0), varCovMat, 3000)
 ## Now write these data for use in the julia script
@@ -233,13 +233,20 @@ n <- 3000
 ## Now call the julia script
 #val <- system("julia ./scripts/juliaCode/mHurdleFlexQ.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
 
-out.datA <- simulate_hurdle_responses(a = runif(5, min=.5,  max=2),b = rnorm(5),a_z = runif(5, min=1, max=3), b_z = genDiffGRM(num_items = 5, num_categories = 4), muVals = c(0,0), varCovMat, 5000)
+num.items <- 4
+out.datA <- simulate_hurdle_responses(a = rep(3, num.items),b_z = seq(-1, 1, length.out=num.items),a_z = rep(3, num.items), b = genDiffGRM(num_items = num.items, num_categories = 3), muVals = c(0,0), varCovMat, 5000)
 out.dat <- out.datA$responses
 write.csv(out.dat, file="./data/testSimDat.csv", quote=F, row.names=F)
 out.datT <- out.datA$tabs
 write.csv(out.dat, file="./data/testSimDat2.csv", quote=F, row.names=F)
-val <- system("julia ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
+val <- system("julia --threads 4 ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
 
+foo <- rowSums(out.datA$responses)
+plot(out.datA$theta[,1], foo)
+plot(out.datA$theta[,2], foo)
+pairs(out.datA$theta)
+cor(out.datA$theta[,1], foo)
+cor(out.datA$theta[,2], foo)
 
 simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 6), muVals = c(0,0), varCovMat, 3000)
 simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 7), muVals = c(0,0), varCovMat, 3000)
