@@ -3,6 +3,8 @@ using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra
 data_out = CSV.File("./data/ScaleWithOutcomesOSF.csv") |> DataFrame
 
 
+testitems = data_out[:,[2,3,4,5,6,7,8,9,10,11,12,13,14,15]];
+
 function trace_line_pts_grm(a, b, theta)
     itemtraceGRM = zeros(size(a)[1], size(theta)[1], 3)
     for j in 1:size(a, 1)

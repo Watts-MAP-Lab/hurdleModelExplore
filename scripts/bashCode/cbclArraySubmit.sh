@@ -18,4 +18,4 @@ echo ${SLURM_ARRAY_TASK_ID}
 echo "Submitting job"
 
 
-julia --threads 3 scripts/juliaCode/mHurdleFlex.jl data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Resp.csv data/data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Tabs.csv 
+julia --threads 3 scripts/juliaCode/mHurdleFlex.jl data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Resp.csv data/CBCL_scale_${SLURM_ARRAY_TASK_ID}_Tabs.csv 
