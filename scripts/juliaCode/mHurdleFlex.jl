@@ -33,9 +33,11 @@ end
 ## Create prob estimate for 2PL portion
 function trace_line_pts_2PL(a_z, b_z, theta)
     nitems = size(a_z)[1];
-    itemtrace2PL = zeros(nitems, size(theta)[1]);
+    itemtrace2PL = zeros(nitems, size(theta)[1], 2);
     for j in 1:nitems
-        itemtrace2PL[j, :] .= 1 .- exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])))
+        itemtrace2PL[j, :, 1] .= 1 .- exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])))
+        itemtrace2PL[j, :, 2] .= exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])))
+
     end
     return itemtrace2PL
 end
@@ -48,9 +50,9 @@ function trace_line_pts(a, b, a_z, b_z, theta)
         for k in 0:n_categories-1
             #print(k)
             if k == 0
-                itemtrace[j, :,k+1] .= 1 .- trace_line_pts_2PL(a_z, b_z, theta)[j, :]
+                itemtrace[j, :,k+1] .= trace_line_pts_2PL(a_z, b_z, theta)[j, :, 1]
             elseif k > 0
-                itemtrace[j,:,k+1] .= trace_line_pts_2PL(a_z, b_z, theta)[j, :] .* trace_line_pts_grm(a, b, theta)[j, :,k]
+                itemtrace[j,:,k+1] .= trace_line_pts_2PL(a_z, b_z, theta)[j, :, 2] .* trace_line_pts_grm(a, b, theta)[j, :,k]
             end
         end
     end
@@ -203,6 +205,7 @@ p[nitems[1]*nParmsPerItemGRM[1] + nitems[1]*nParmsPerItem2PL[1] + 1] = rho_exp
 
 ## First run single shot ll test
 println(ll_grm_ip(p, data_out, theta, data_out2))
+@time ll_grm_ip(p, data_out, theta, data_out2)
 
 ## Now optimize
 ## Now write the csv here
