@@ -3,7 +3,6 @@ using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra
 data_out = CSV.File("./data/ScaleWithOutcomesOSF.csv") |> DataFrame
 
 
-testitems = data_out[:,[2,3,4,5,6,7,8,9,10,11,12,13,14,15]];
 function trace_line_pts_grm(a, b, theta)
     itemtraceGRM = zeros(size(a)[1], size(theta)[1], 3)
     for j in 1:size(a, 1)
@@ -155,7 +154,7 @@ function ll_grm_ip(p, testdata, theta)
         a[j, 1] = p[(j - 1) * nParmsPerItemGRM + 1]
         a_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL + 1]
         b_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL + 2]
-        for k in 1:(ncatgrm - 1)
+        for k in 1:(ncatgrm-1)
             b[j, k] = p[(j - 1) * nParmsPerItemGRM + 1 + k]
         end
     end
@@ -201,12 +200,16 @@ end
 ## Now call the ll model
 ll_grm_ip(p, testitems, theta)
 
+@time ll_grm_ip(p, testitems, theta)
+
+
 ## Now try to optimize this
 @time h = optimize(z -> ll_grm_ip(z, testitems, theta),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5)) ## This took 21479 seconds
+
 h_min = Optim.minimizer(h);
+println(h_min)
 h_min = DataFrame(h_min)
-using CSV, Tables
-CSV.write("./data/outJuliaMinOSF.csv",  Tables.table(h_min), writeheader=false)
+
 @time j = optimize(z -> ll_grm_ip(z, testitems, theta),p,Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=100))
 p2 = Optim.minimizer(j);
 @time j2 = optimize(z -> ll_grm_ip(z, testitems, theta),p2,Optim.Options(g_tol = 1e-3, iterations=25_000, show_trace=true, show_every=100))
