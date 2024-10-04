@@ -79,6 +79,7 @@ function multivariate_normal_pdf(x, μ, Σ)
 
     # Ensure Σ is positive definite
     if !isposdef(Σ)
+        println(Σ)
         error("Covariance matrix must be positive definite")
     end
 
