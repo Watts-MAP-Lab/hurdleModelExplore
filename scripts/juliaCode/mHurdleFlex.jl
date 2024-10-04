@@ -212,6 +212,6 @@ println(ll_grm_ip(p, data_out, theta, data_out2))
 #outputRand = rand(Int)
 #outputFile = ("/tmp/")
 
-@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,GradientDescent(),Optim.Options(g_tol = 5e-3, iterations=350_000, show_trace=true, show_every=1))
+@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
 
 println(Optim.minimizer(h))
