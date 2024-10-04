@@ -1,15 +1,15 @@
-using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppressor, Base.Threads
+using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppressor
 
 ## First load the data
-in_resp = ARGS[1]
+#in_resp = ARGS[1]
 in_tabs = ARGS[2]
 #in_resp = "/home/arosen/Documents/hurdleModelExplore/data/testOSF.csv"
 #in_tabs = "/home/arosen/Documents/hurdleModelExplore/data/testOSF2.csv"
-data_out = CSV.File(in_resp) |> DataFrame
+#data_out = CSV.File(in_resp) |> DataFrame
 data_out2 = CSV.File(in_tabs) |> DataFrame
 
 ## Now obtain all of the names in the data frame
-println("Processing: ", in_resp)
+println("Processing: ", in_tabs)
 
 
 ## Create prob estimate for GRM portion
@@ -35,8 +35,8 @@ function trace_line_pts_2PL(a_z, b_z, theta)
     nitems = size(a_z)[1];
     itemtrace2PL = zeros(nitems, size(theta)[1], 2);
     for j in 1:nitems
-        itemtrace2PL[j, :, 1] .= 1 .- exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])))
-        itemtrace2PL[j, :, 2] .= exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])))
+        itemtrace2PL[j, :, 1] .= 1 .- exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1]))) ## prob no
+        itemtrace2PL[j, :, 2] .= exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1])) ./ (1 .+ exp.(a_z[j, :] .* (theta[:, 1] .- b_z[j, 1]))) ## Prob yes
 
     end
     return itemtrace2PL
@@ -96,8 +96,11 @@ function multivariate_normal_pdf(x, μ, Σ)
 end
 
 
-function ll_grm_ip(p, testdata, theta, r)
+function ll_grm_ip(p, data_in, theta)
     
+    ## First remove the count column
+    testdata = data_in[:,1:end-1]
+    r = data_in[:,end]
     nParamsPerItemGRM = maximum(maximum(eachcol(testdata))); 
     nParamsPerItem2PL = 2
     ncatgrm = maximum(maximum(eachcol(testdata))) 
@@ -108,10 +111,6 @@ function ll_grm_ip(p, testdata, theta, r)
     a_z = fill(-1.0, nitems, 1)
     b_z = fill(-1.0, nitems, 1)
     rho_exp = 0
-
-    ## Fix wild values here
-    p[p.<=-8] .= [-8]
-    p[p.>8] .= [8]
     
     for j in 1:nitemsgrm
         a[j, 1] = p[(j - 1) * nParmsPerItemGRM + 1]
@@ -122,10 +121,16 @@ function ll_grm_ip(p, testdata, theta, r)
         end
     end
 
+    ## Now fix the order of the b difficulty values
+    b = sort(b, dims = 2, rev = false)
+
     rho_exp = p[nitems * nParmsPerItemGRM + nitems * nParamsPerItem2PL + 1]
     rho = exp(rho_exp) / (1 + exp(rho_exp))
     itemtrace = trace_line_pts(a, b, a_z, b_z, theta);
     expected = zeros(size(r, 1))
+
+    ## Add a quick check for negative item trace values here
+    #itemtrace[itemtrace.<0] .= [1e-30]
 
     ## Create all of the posterior estimates here
     posterior = zeros(size(theta)[1])
@@ -133,39 +138,29 @@ function ll_grm_ip(p, testdata, theta, r)
         posterior[i] = multivariate_normal_pdf(theta[i,:], [0,0], [1.0 rho; rho 1.0])
     end
     posterior_orig = posterior  
-    @threads for i in 1:size(r)[1]
+    for i in 1:size(r)[1]
         posterior = posterior_orig
         for item in 1:nitems
-            x = Int(r[i, item])   
+            x = Int(testdata[i, item])   
             posterior = posterior .* itemtrace[item, :,x+1] 
         end
         expected[i] = sum(posterior)
     end
-    #@info "params are: $p"
     ## Check for 0 values in the expected values
-    expected[expected.==0] .= [1e-10]
-    expected[expected.<0] .= [1e-10]    
-    l = -1 * sum( r[:,end] .* log.(expected))
-    if isnan(l)
-        @info "params are: $p"
-        error("LL is NaN")
-    end
-    if isinf(l)
-        @info "params are $p"
-        error("LL is inf")
-    end
-    #@info "LL val is: $l"
     #@info "params are $p"
+    #expected[expected.==0] .= [1e-10]
+    #expected[expected.<0] .= [1e-10]    
+    l = -1 * sum( r[:,end] .* log.(expected))
+    #@info "LL val is: $l"
 
     return(l)
     
 end
 
 ## Basic shop keeping here
-nitems = size(data_out)[2];
-nParmsPerItemGRM = maximum(maximum(eachcol(data_out))); ## Finds the maximum number of response options and then subtract by one for zero portion
+nitems = size(data_out2)[2]-1;
+nParmsPerItemGRM = maximum(maximum(eachcol(data_out2[:,1:end-1]))); ## Finds the maximum number of response options and then subtract by one for zero portion
 nParmsPerItem2PL = [2]; ## By definition, only 2 params in 2 PL model
-
 ## Now create all theta points for Quadrature integration nonsense
 theta1 = -6:0.25:6  # Quadrature points for theta1
 theta2 = -6:0.25:6
@@ -175,12 +170,12 @@ d = reshape(d, 2401);
 theta = [d[i][j] for i in 1:length(d), j in 1:length(d[1])];
 
 ## Now initialize random start points for GRM postion of model
-a = rand(nitems);
+a = fill(2, nitems);
 b = rand(nitems, nParmsPerItemGRM-1);
 
 ## Now intitialize random start points for the 2PL portion of model
-a_z = rand(size(data_out)[2]);
-b_z = rand(size(data_out)[2]);
+a_z = fill(2, nitems);
+b_z = fill(-1, nitems);
 
 rho_exp = 0.2;
 
@@ -190,7 +185,7 @@ totalP = paramGRM .+ param2PL
 totalP = totalP[1] + 1
 p = zeros(totalP) 
 nitemsgrm = nitems
-ncatgrm = maximum(maximum(eachcol(data_out)))
+ncatgrm = maximum(maximum(eachcol(data_out2[:,1:end-1])))
 for j in 1:nitems 
   p[(j-1)*nParmsPerItemGRM + 1] = a[j]
   p[nitemsgrm[1]*nParmsPerItemGRM[1] + (j-1)*nParmsPerItem2PL[1] + 1] = a_z[j]
@@ -204,14 +199,17 @@ p[nitems[1]*nParmsPerItemGRM[1] + nitems[1]*nParmsPerItem2PL[1] + 1] = rho_exp
 ## Now optimize these values
 
 ## First run single shot ll test
-println(ll_grm_ip(p, data_out, theta, data_out2))
-@time ll_grm_ip(p, data_out, theta, data_out2)
+println(ll_grm_ip(p, data_out2, theta))
+@time ll_grm_ip(p, data_out2, theta)
 
 ## Now optimize
 ## Now write the csv here
 #outputRand = rand(Int)
 #outputFile = ("/tmp/")
 
-@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
+lower_bound = fill(-6, length(p))
+upper_bound = fill(6, length(p))
+#h = optimize(z -> ll_grm_ip(z, data_out2, theta),p, ParticleSwarm(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
+h = optimize(z -> ll_grm_ip(z, data_out2, theta),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
 
 println(Optim.minimizer(h))
