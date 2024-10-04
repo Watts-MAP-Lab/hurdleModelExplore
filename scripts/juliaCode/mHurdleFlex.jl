@@ -130,6 +130,11 @@ function ll_grm_ip(p, data_in, theta)
     if rho == 1
         rho = .9999
     end
+    if isnan(rho)
+        println(rho)
+        println(rho_exp)
+        error("Rho not defined")
+    end
     ## Ensure all a & a_z are positive
     a[a.<0] .= a[a.<0]*-1
     a_z[a_z.<0] .= a_z[a_z.<0]*-1
