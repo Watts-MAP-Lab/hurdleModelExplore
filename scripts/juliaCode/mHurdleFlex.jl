@@ -130,6 +130,10 @@ function ll_grm_ip(p, data_in, theta)
     if rho == 1
         rho = .9999
     end
+    ## Ensure all a & a_z are positive
+    a[a.<0] .= a[a.<0]*-1
+    a_z[a_z.<0] .= a_z[a_z.<0]*-1
+    
     itemtrace = trace_line_pts(a, b, a_z, b_z, theta);
     expected = zeros(size(r, 1))
 
@@ -151,7 +155,7 @@ function ll_grm_ip(p, data_in, theta)
         expected[i] = sum(posterior)
     end
     ## Check for 0 values in the expected values
-    #@info "params are $p"
+    @info "params are $p"
     #expected[expected.==0] .= [1e-10]
     #expected[expected.<0] .= [1e-10]    
     l = -1 * sum( r[:,end] .* log.(expected))
