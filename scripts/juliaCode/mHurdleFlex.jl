@@ -127,6 +127,9 @@ function ll_grm_ip(p, data_in, theta)
 
     rho_exp = p[nitems * nParmsPerItemGRM + nitems * nParamsPerItem2PL + 1]
     rho = exp(rho_exp) / (1 + exp(rho_exp))
+    if rho == 1
+        rho = .9999
+    end
     itemtrace = trace_line_pts(a, b, a_z, b_z, theta);
     expected = zeros(size(r, 1))
 
