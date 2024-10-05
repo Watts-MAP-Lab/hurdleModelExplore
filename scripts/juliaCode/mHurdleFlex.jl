@@ -133,7 +133,13 @@ function ll_grm_ip(p, data_in, theta)
     if isnan(rho)
         println(rho)
         println(rho_exp)
-        error("Rho not defined")
+        println("Rho not defined")
+        if rho_exp > 0
+            rho = .99999
+        end
+        if rho_exp < 0
+            rho = 4.55861385801115e-200
+        end
     end
     ## Ensure all a & a_z are positive
     a[a.<0] .= a[a.<0]*-1
@@ -160,7 +166,7 @@ function ll_grm_ip(p, data_in, theta)
         expected[i] = sum(posterior)
     end
     ## Check for 0 values in the expected values
-    @info "params are $p"
+    #@info "params are $p"
     #expected[expected.==0] .= [1e-10]
     #expected[expected.<0] .= [1e-10]    
     l = -1 * sum( r[:,end] .* log.(expected))

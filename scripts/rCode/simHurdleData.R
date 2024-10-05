@@ -220,26 +220,15 @@ return_Mod_Params <- function(juliaOutput, dataIn){
     }
 
 }
-varCovMat <- matrix(c(1,.4,.4,1), nrow=2)
+varCovMat <- matrix(c(1,.2,.2,1), nrow=2)
 n <- 5000
-#simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=.5, max=2), b_z = genDiffGRM(num_items = 20, num_categories = 3), muVals = c(0,0), varCovMat, 3000)
-#simulate_hurdle_responses(a = runif(5, min=.5,  max=2),b = rnorm(5),a_z = runif(5, min=1, max=3), b_z = genDiffGRM(num_items = 5, num_categories = 5), muVals = c(0,0), varCovMat, 3000)
-## Now write these data for use in the julia script
-#out.datA <- simulate_hurdle_responses(a = runif(20, min=.5,  max=2),b = rnorm(20),a_z = runif(20, min=1, max=3), b_z = genDiffGRM(num_items = 20, num_categories = 4), muVals = c(0,0), varCovMat, 5000)
-#out.dat <- out.datA$responses
-#write.csv(out.dat, file="./data/testSimDat.csv", quote=F, row.names=F)
-#out.datT <- out.datA$tabs
-#write.csv(out.dat, file="./data/testSimDat2.csv", quote=F, row.names=F)
-## Now call the julia script
-#val <- system("julia ./scripts/juliaCode/mHurdleFlexQ.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
-
-num.items <- 4
+num.items <- 14
 out.datA <- simulate_hurdle_responses(a = rep(3, num.items),b_z = seq(-1, 1, length.out=num.items),a_z = rep(3, num.items), b = genDiffGRM(num_items = num.items, num_categories = 3), muVals = c(0,0), varCovMat, 5000)
 out.dat <- out.datA$responses
 write.csv(out.dat, file="./data/testSimDat.csv", quote=F, row.names=F)
 out.datT <- out.datA$tabs
-write.csv(out.dat, file="./data/testSimDat2.csv", quote=F, row.names=F)
-val <- system("julia --threads 4 ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
+write.csv(out.datT, file="./data/testSimDat2.csv", quote=F, row.names=F)
+val <- system("julia ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./data/testSimDat2.csv", intern = TRUE)
 
 foo <- rowSums(out.datA$responses)
 plot(out.datA$theta[,1], foo)
