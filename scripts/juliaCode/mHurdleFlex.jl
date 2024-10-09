@@ -2,7 +2,7 @@ using Combinatorics, Distributions, CSV, DataFrames, Optim, LinearAlgebra, Suppr
 
 ## First load the data
 #in_resp = ARGS[1]
-in_tabs = ARGS[2]
+in_tabs = ARGS
 #in_resp = "/home/arosen/Documents/hurdleModelExplore/data/testOSF.csv"
 #in_tabs = "/home/arosen/Documents/hurdleModelExplore/data/testOSF2.csv"
 #data_out = CSV.File(in_resp) |> DataFrame
