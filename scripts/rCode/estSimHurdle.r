@@ -15,11 +15,11 @@ i <- commandArgs(TRUE)
 
 ## This script will read a single input which will be the row for the simulation to run
 ## FIrst generate all of the simulation permutations
-sim.param.nitems <- c(5,9)
+sim.param.nitems <- c(5,7)
 sim.param.ncates <- c(3,5,7)
 sim.param.discri <- c(3)
 sim.param.diffic <- c(-1,1)
-sim.param.sample <- c(10000)
+sim.param.sample <- c(3000)
 sim.param.faccor <- c(.2, .4, .7)
 sim.param.critco <- c(.2, .4, .7)
 sim.param.difgrm <- c(-1, 0)
