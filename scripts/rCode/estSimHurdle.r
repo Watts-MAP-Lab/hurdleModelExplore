@@ -15,19 +15,20 @@ i <- commandArgs(TRUE)
 
 ## This script will read a single input which will be the row for the simulation to run
 ## FIrst generate all of the simulation permutations
-sim.param.nitems <- c(3,9)
+sim.param.nitems <- c(5,9)
 sim.param.ncates <- c(3,5,7)
 sim.param.discri <- c(3)
 sim.param.diffic <- c(-1,1)
-sim.param.sample <- c(1000)
+sim.param.sample <- c(10000)
 sim.param.faccor <- c(.2, .4, .7)
 sim.param.critco <- c(.2, .4, .7)
 sim.param.difgrm <- c(-1, 0)
 covarPat <- c("a","b","c")
-sim.perms <- 1:100
+sim.perms <- 1
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.diffic, sim.param.sample, sim.param.faccor, 
                             sim.param.critco, sim.param.difgrm, covarPat,sim.perms)
+
 ## Grab a random integer for the data files
 random.int <- sample(1:2^30, 1)
 
@@ -49,9 +50,6 @@ if(all.sim.vals[i,9]=="a"){varCovMat <- varCovMat1}
 if(all.sim.vals[i,9]=="b"){varCovMat <- varCovMat2}
 if(all.sim.vals[i,9]=="c"){varCovMat <- varCovMat3}
 
-out.directory <- paste('./data/simdir_',all.sim.vals[i,8] ,sep='')
-out.file <- paste(out.directory,'/fileVal_', i,'.RData', sep='')
-dir.create(out.directory, showWarnings = FALSE)
 ## Now simulate the data
 out.data1 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
     b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat, all.sim.vals[i,5])
@@ -61,14 +59,19 @@ out.data1 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i
 #    b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat3, all.sim.vals[i,5])
 
 ## Now esimtate models here
-tmp.file <- paste("/tmp/", random.int, "_tabs.csv", sep='')
+
+
+tmp.file <- paste("./data/", random.int, "_tabs.csv", sep='')
 write.csv(out.data1$tabs, tmp.file, quote=F, row.names=F)
+out.directory <- paste('./data/simdir_',all.sim.vals[i,10] ,sep='')
+out.file <- paste(out.directory,'/fileVal_', i,'.RData', sep='')
+
 val1 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
 #write.csv(out.data2$tabs, tmp.file, quote=F, row.names=F)
 #val2 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
 #write.csv(out.data3$tabs, tmp.file, quote=F, row.names=F)
 #val3 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
-
+#system(paste("rm ", tmp.file))
 ## Now gather parameter estimates
 mod.est1 <- return_Mod_Params(val1, out.data1)
 #mod.est2 <- return_Mod_Params(val2, out.data2)
