@@ -126,56 +126,52 @@ function multivariate_normal_pdf(x, μ, Σ)
     return pdf
 end
 
+
 function ll_grm_ip(p, data_in, theta)
-    # First remove the count column
-    testdata = data_in[:, 1:end-1]
-    r = data_in[:, end]
     
-    nParamsPerItemGRM = maximum(maximum(eachcol(testdata)))
+    ## First remove the count column
+    testdata = data_in[:,1:end-1]
+    r = data_in[:,end]
+    nParamsPerItemGRM = maximum(maximum(eachrow(testdata))); 
     nParamsPerItem2PL = 2
-    ncatgrm = maximum(maximum(eachcol(testdata)))
-    nitemsgrm = nitems = size(testdata, 2)
+    ncatgrm = maximum(maximum(eachrow(testdata))) 
+    nitemsgrm=nitems=size(testdata)[2]
     
-    # Initialize parameters a, b, a_z, b_z
     a = fill(-1.0, nitems, 1)
-    b = fill(-1.0, nitems, nParamsPerItemGRM - 1)
+    b = fill(-1.0, nitems, nParamsPerItemGRM-1)
     a_z = fill(-1.0, nitems, 1)
     b_z = fill(-1.0, nitems, 1)
+    rho_exp = 0
     
-    # Extract parameters from p
     for j in 1:nitemsgrm
-        idx_grm = (j - 1) * nParamsPerItemGRM + 1
-        idx_2pl = nitems * nParamsPerItemGRM + (j - 1) * nParamsPerItem2PL
-        a[j, 1] = p[idx_grm]
-        a_z[j, 1] = p[idx_2pl + 1]
-        b_z[j, 1] = p[idx_2pl + 2]
-        
-        for k in 1:(ncatgrm - 1)
-            b[j, k] = p[idx_grm + k]
+        a[j, 1] = p[(j - 1) * nParmsPerItemGRM + 1]
+        a_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1]+ 1]
+        b_z[j, 1] = p[nitems * nParmsPerItemGRM + (j - 1) * nParmsPerItem2PL[1] + 2]
+        for k in 1:(ncatgrm-1)
+            b[j, k] = p[(j - 1) * nParmsPerItemGRM + 1 + k]
         end
     end
-    
-    # Sort difficulty parameters for each item
-    b = sort(b, dims=2)
-    
-    # Calculate rho
-    rho_exp = p[nitems * nParamsPerItemGRM + nitems * nParamsPerItem2PL + 1]
+
+    ## Now fix the order of the b difficulty values
+    b = sort(b, dims = 2, rev = false)
+
+    rho_exp = p[nitems * nParmsPerItemGRM + nitems * nParamsPerItem2PL + 1]
     rho = exp(rho_exp) / (1 + exp(rho_exp))
-    rho = clamp(rho, 1e-10, 0.99999999)  # Avoid edge cases for rho
+    rho = clamp(rho, 2e-100, .9999)
+    ## Ensure all a & a_z are positive
+    a[a.<0] .= a[a.<0]*-1
+    a_z[a_z.<0] .= a_z[a_z.<0]*-1
     
-    # Ensure all a & a_z are positive
-    a = abs.(a)
-    a_z = abs.(a_z)
-    
-    # Precompute itemtrace
-    itemtrace = trace_line_pts(a, b, a_z, b_z, theta)
-    
-    # Precompute posterior distribution using multivariate normal pdf
-    posterior_orig = [multivariate_normal_pdf(theta[i, :], [0, 0], [1.0 rho; rho 1.0]) for i in 1:size(theta, 1)]
-    
-    # Initialize expected value array
-    expected = zeros(size(r))
-        for i in 1:size(r)[1]
+    itemtrace = trace_line_pts(a, b, a_z, b_z, theta);
+    expected = zeros(size(r, 1))
+
+    ## Create all of the posterior estimates here
+    posterior = zeros(size(theta)[1])
+    for i in 1:size(theta)[1]
+        posterior[i] = multivariate_normal_pdf(theta[i,:], [0,0], [1.0 rho; rho 1.0])
+    end
+    posterior_orig = posterior  
+    for i in 1:size(r)[1]
         posterior = posterior_orig
         for item in 1:nitems
             x = Int(testdata[i, item])   
@@ -183,12 +179,12 @@ function ll_grm_ip(p, data_in, theta)
         end
         expected[i] = sum(posterior)
     end
-    
-    # Compute log likelihood, adding a small constant to avoid log(0)
-    expected = max.(expected, 1e-10)
-    l = -sum(r .* log.(expected))
+    expected=clamp.(expected, 2e-100, Inf)
+    l = -1 * sum( r[:,end] .* log.(expected))
+    #@info "LL val is: $l"
 
-    return l
+    return(l)
+    
 end
 
 
@@ -234,8 +230,9 @@ p[nitems[1]*nParmsPerItemGRM[1] + nitems[1]*nParmsPerItem2PL[1] + 1] = rho_exp
 ## Now optimize these values
 
 ## First run single shot ll test
-println(ll_grm_ip(p, data_out2, theta))
 @time ll_grm_ip(p, data_out2, theta)
+@time ll_grm_ip(p, data_out2, theta)
+
 
 ## Now optimize
 h = optimize(z -> ll_grm_ip(z, data_out2, theta),p,LBFGS(),Optim.Options(g_tol = 1e-3, iterations=350_000, show_trace=true, show_every=5))
