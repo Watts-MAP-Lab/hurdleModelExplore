@@ -182,7 +182,7 @@ return_Mod_Params <- function(juliaOutput, dataIn){
     irt2PLParam <- matrix(NA, nrow=nitems, ncol=2)
     ## Now do the GRM portion
     ncatgrm <- diff(range(dataIn$responses))
-    ## First idenitfy the total number of difficult params needed
+    ## First identify the total number of difficult params needed
     irtGRMParam <- matrix(NA, nrow=dim(dataIn$responses)[2], ncol=ncatgrm)
 
     ## Clean up the Julia output here
