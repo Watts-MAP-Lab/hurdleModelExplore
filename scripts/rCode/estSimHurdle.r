@@ -1,81 +1,57 @@
 ## This script will be used to estimate the hurdle models on the ACCRE cluster
-## This script will try to reduce the total amount of disk usage requried
-## It will perfrom 4 discrete tasks:
-## 1. Simulate the data required to esitmate the models
-## 2. Esimtate the models by calling the julia script
-## 3. Return true and esitmated parameters
-## 4. Also return the esitmated theta parameters and their true counter parts
+## This script will try to reduce the total amount of disk usage required
+## It will perform 4 discrete tasks:
+## 1. Simulate the data required to estimate the models
+## 2. Estimate the models by calling the julia script
+## 3. Return true and estimated parameters
+## 4. Also return the estimated theta parameters and their true counter parts
 
 ## Source and load libraries
 library(tidyverse)
 source("./scripts/rCode/hurdleFunctions.r")
 
 ## Get the command calls
-i <- commandArgs(TRUE)
-
+i <- as.integer(commandArgs(TRUE))
+print(i)
 ## This script will read a single input which will be the row for the simulation to run
-## FIrst generate all of the simulation permutations
-sim.param.nitems <- c(5,7)
+## First generate all of the simulation permutations
+sim.param.nitems <- c(5,7,10)
 sim.param.ncates <- c(3,5,7)
-sim.param.discri <- c(3)
+sim.param.discri <- c(2)
 sim.param.diffic <- c(-1,1)
-sim.param.sample <- c(3000)
-sim.param.faccor <- c(.2, .4, .7)
-sim.param.critco <- c(.2, .4, .7)
+sim.param.sample <- c(1000)
+sim.param.faccor <- c(.3, .6)
+sim.param.critco <- c(0,.3,.6)
+sim.param.critco2 <- c(0, .3, .6)
 sim.param.difgrm <- c(-1, 0)
-covarPat <- c("a","b","c")
-sim.perms <- 1
+sim.perms <- 1:100
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.diffic, sim.param.sample, sim.param.faccor, 
-                            sim.param.critco, sim.param.difgrm, covarPat,sim.perms)
+                            sim.param.critco, sim.param.critco2,sim.param.difgrm,sim.perms)
 
 ## Grab a random integer for the data files
 random.int <- sample(1:2^30, 1)
 
 ## Now generate the data
-row.1 <- c(1,all.sim.vals[i,6], 0)
-row.2 <- c(all.sim.vals[i,6], 1, all.sim.vals[i,7])
-row.3 <- c(0, all.sim.vals[i,7], 1)
-varCovMat1 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)
 row.1 <- c(1,all.sim.vals[i,6], all.sim.vals[i,7])
-row.2 <- c(all.sim.vals[i,6], 1, 0)
-row.3 <- c(all.sim.vals[i,7], 0,1)
-varCovMat2 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)
-row.1 <- c(1,all.sim.vals[i,6], all.sim.vals[i,7])
-row.2 <- c(all.sim.vals[i,6], 1, all.sim.vals[i,7])
-row.3 <- c(all.sim.vals[i,7], all.sim.vals[i,7], 1)
-varCovMat3 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)    
+row.2 <- c(all.sim.vals[i,6], 1, all.sim.vals[i,8])
+row.3 <- c(all.sim.vals[i,7], all.sim.vals[i,8], 1)
+varCovMat <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)
 set.seed(all.sim.vals[i,10])
-if(all.sim.vals[i,9]=="a"){varCovMat <- varCovMat1}
-if(all.sim.vals[i,9]=="b"){varCovMat <- varCovMat2}
-if(all.sim.vals[i,9]=="c"){varCovMat <- varCovMat3}
 
 ## Now simulate the data
 out.data1 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
-    b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat, all.sim.vals[i,5])
-#out.data2 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
-#    b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat2, all.sim.vals[i,5])
-#out.data3 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
-#    b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat3, all.sim.vals[i,5])
-
-## Now esimtate models here
-
-
+    b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,9]), muVals = c(0,0,0), varCovMat, all.sim.vals[i,5])
+## Now estimate models here
 tmp.file <- paste("./data/", random.int, "_tabs.csv", sep='')
 write.csv(out.data1$tabs, tmp.file, quote=F, row.names=F)
 out.directory <- paste('./data/simdir_',all.sim.vals[i,10] ,sep='')
 out.file <- paste(out.directory,'/fileVal_', i,'.RData', sep='')
 
 val1 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
-#write.csv(out.data2$tabs, tmp.file, quote=F, row.names=F)
-#val2 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
-#write.csv(out.data3$tabs, tmp.file, quote=F, row.names=F)
-#val3 <- system(paste("julia ./scripts/juliaCode/mHurdleFlex.jl",tmp.file), intern = TRUE)
-#system(paste("rm ", tmp.file))
+system(paste("rm ", tmp.file))
 ## Now gather parameter estimates
 mod.est1 <- return_Mod_Params(val1, out.data1)
-#mod.est2 <- return_Mod_Params(val2, out.data2)
-#mod.est3 <- return_Mod_Params(val3, out.data3)
 
 # Scale Scores
 theta1 <- seq(-6,6,0.25) # Quadrature points for theta1

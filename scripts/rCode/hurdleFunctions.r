@@ -49,35 +49,18 @@ genDiffGRM <- function(num_items= 20, num_categories=5, min=0, max=2){
     return(d)
 }
 
-## Create a function which will return values for a GRM model
-# n: number of examinees
-# m: number of items
-# a: a vector of discrimination parameters (length m)
-# b: a list of threshold parameters (each list element contains thresholds for that item)
-# theta: latent trait levels for examinees (if NULL, they will be drawn from N(0, 1))
-simulate_grm_data <- function(n, m, a, b, theta = NULL) {
-  
-  
-  # Initialize response matrix
-  responses <- matrix(NA, nrow = n, ncol = m)
-  
-  # Loop through items
-  for (j in 1:m) {
-    aj <- a[j]  # Discrimination parameter for item j
-    bj <- b[j,]  # Threshold parameters for item j
-    num_categories <- length(bj) + 1  # Number of response categories for item j
-    
-    # Loop through examinees
-    for (i in 1:n) {
-        ## Create response probs here
-        resp_probs = itemtraceGRM(a=aj, b=bj, theta= )
-      
-    }
-  }
-  
-  return(list(responses = responses, theta = theta))
+genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var = .5){
+  ## Figure out how many difficulty params are needed
+  num_dif = num_categories-1
+  ## Now first create a vector of equidistant difficulty parameters for every item
+  equi.vec <- seq(min, max, length.out = num_dif)
+  ## Assign difficulty parameters here
+  out.mat <- matrix(equi.vec, nrow=num_items, ncol=num_dif, byrow = TRUE)
+  ## Add some error
+  out.mat <- out.mat + rnorm(num_items * num_dif, sd = rnorm_var)
+  out.mat <- t(apply(out.mat, 1, sort))
+  return(out.mat)
 }
-
 
 ## Create a function here which will return all of the probs from a GRM model
 itemtraceGRM <- function(a, b, theta){
@@ -97,11 +80,6 @@ itemtraceGRM <- function(a, b, theta){
     return(out_prob)
 }
 
-#tmp <-  simulate_grm_data(3000, 20, a = rnorm(10,mean = 2), b = genDiffGRM(num_items = 10, num_categories = 3), theta=rnorm(3000))
-#vals <- rowSums(tmp$responses)
-#plot(vals, tmp$theta)
-#cor(vals, tmp$theta)
-
 ## Now I need to simulate the full hurdle model here
 # a = 2PL discrim
 # b = 2 PL diff
@@ -116,9 +94,9 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
     theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
     numItems = length(a)
     num_categories = dim(b)[2] + 2
-    ## First go through an obtain all of the repsone probabilities for the 2PL protion of the model
+    ## First go through an obtain all of the response probabilities for the 2PL portion of the model
     ## This is the susceptibility factor
-    # Prep a matrix to store all of the prob of endorsments here
+    # Prep a matrix to store all of the prob of endorsements here
     responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
     for(i in 1:N){
         for(j in 1:length(a)){
@@ -167,9 +145,22 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
         group_by(across(everything())) %>%
         summarise(Count = n(), .groups = "drop") %>%
         ungroup()
+    ## Now prep the dataframe for MPlus hurdle extension
+    ## Now make the matrix for these data
+    matrix.mplus1 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
+    matrix.mplus2 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
+    
+    ## Now make the binary indicators first
+    matrix.mplus1<- responses
+    matrix.mplus1[which(matrix.mplus1[,1:ncol(responses)]>0)] <- 1
+    ## Now do severity indicators here
+    matrix.mplus2 <- responses
+    matrix.mplus2[which(matrix.mplus2==0)] <- NA
+    matrix.mplus <- cbind(matrix.mplus1, matrix.mplus2)
+    
     ## Now return everything
     out.data = list(responses = responses, theta = data.frame(theta), tabs = crosstab,
-    a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat)
+    a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
     return(out.data)
 }
 
@@ -226,7 +217,6 @@ return_Mod_Params <- function(juliaOutput, dataIn){
     return(out_vals)
 }
 
-
 ## Now do all factors used to estimate theta values here
 trace.line.pts.2PL <- function(a_z, b_z, theta)	{
   nitems = length(a_z)
@@ -234,11 +224,11 @@ trace.line.pts.2PL <- function(a_z, b_z, theta)	{
   probPos <- matrix(NA, nrow = nitems, ncol = length(theta[,1]))
   probNeg <- matrix(NA, nrow = nitems, ncol = length(theta[,1]))
   for (j in 1:nitems){
-    probPos[j,] <- 1 - exp(a_z[j]*(theta[,1] - b_z[j]))/(1+exp(a_z[j]*(theta[,1] - b_z[j])))
-    probNeg[j,] <- exp(a_z[j]*(theta[,1] - b_z[j]))/(1+exp(a_z[j]*(theta[,1] - b_z[j])))
+    probNeg[j,] <- 1 - exp(a_z[j]*(theta[,1] - b_z[j]))/(1+exp(a_z[j]*(theta[,1] - b_z[j])))
+    probPos[j,] <- exp(a_z[j]*(theta[,1] - b_z[j]))/(1+exp(a_z[j]*(theta[,1] - b_z[j])))
   }
-  itemtrace2PL[[1]] <- probPos
-  itemtrace2PL[[2]] <- probNeg
+  itemtrace2PL[[1]] <- probNeg
+  itemtrace2PL[[2]] <- probPos
   return(itemtrace2PL)
 }
 
@@ -280,25 +270,13 @@ trace.line.pts <- function(a, b, a_z, b_z, theta){
   return(itemtrace)
 }
 
-
-score <- function(pattern) {
-  lhood <- rep(1,length(qpoints$theta1))
-  for (item in 1:nitems){
-    if(pattern[item]==0) lhood <- lhood*itemtrace[[1]][item,]
-    if(pattern[item]==1) lhood <- lhood*itemtrace[[2]][item,]
-    if(pattern[item]==2) lhood <- lhood*itemtrace[[3]][item,]
-    if(pattern[item]==3) lhood <- lhood*itemtrace[[4]][item,]
-  }
-  lhood
-}
-
 score <- function(response_pattern, itemtrace, qPoints){
     lhood <- rep(1, dim(qPoints)[1])
     nitems <- dim(itemtrace[[1]])[1]
     for(item in 1:nitems){
         answerval = response_pattern[item]
         indexval = as.integer(answerval + 1)
-        lhood <- lhood*itemtrace[[indexval]] [item,]
+        lhood <- lhood*itemtrace[[indexval]][item,]
     }
     return(lhood)
 }

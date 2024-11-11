@@ -91,11 +91,12 @@ function multivariate_normal_pdf(x, μ, Σ)
 end
 
 
+
 function ll_grm_ip(p, testdata, theta, r)
     
-    nParamsPerItemGRM = maximum(maximum(eachcol(data_out)))-1; 
+    nParamsPerItemGRM = maximum(maximum(eachcol(testdata))); 
     nParamsPerItem2PL = 2;
-    ncatgrm = maximum(maximum(eachcol(data_out))) 
+    ncatgrm = maximum(maximum(eachcol(testdata))) 
     nitemsgrm=nitems=size(testdata)[2]
     
     a = fill(-1.0, nitems, 1)
@@ -105,14 +106,14 @@ function ll_grm_ip(p, testdata, theta, r)
     rho_exp = 0
 
     ## Fix wild values here
-    p[p.<=-3] .= [-3]
-    p[p.>4] .= [3]
+    p[p.<=-8] .= [-8]
+    p[p.>8] .= [8]
     
     for j in 1:nitemsgrm
         a[j, 1] = p[(j - 1) * nParamsPerItemGRM + 1]
         a_z[j, 1] = p[nitems * nParamsPerItemGRM + (j - 1) * nParamsPerItem2PL + 1]
         b_z[j, 1] = p[nitems * nParamsPerItemGRM + (j - 1) * nParamsPerItem2PL + 2]
-        for k in 1:(ncatgrm - 1)
+        for k in 1:(ncatgrm)
             b[j, k] = p[(j - 1) * nParamsPerItemGRM + 1 + k]
         end
     end
@@ -150,10 +151,12 @@ function ll_grm_ip(p, testdata, theta, r)
         error("LL is inf")
     end
     #@info "LL val is: $l"
+    #@info "params are $p"
 
     return(l)
     
 end
+
 
 ## Basic shop keeping here
 nitems = size(data_out)[2];

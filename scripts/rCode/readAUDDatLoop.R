@@ -1,18 +1,17 @@
 ## This script will be used to read the AUD 87 data
-in.dat <- read.csv("./data/aud87/AUD-87_combined.csv")
+in.dat <- read.csv("~/Documents/hurdleModelExplore/data/aud87/AUD-87_combined.csv")
 
 ## Load library(s)
 source("~/GitHub/adroseHelperScripts/R/afgrHelpFunc.R")
-source("./scripts/rCode/hurdleFunctions.r")
+source("~/Documents/hurdleModelExplore/scripts/rCode/hurdleFunctions.r")
 library(mirt)
 library(tidyverse)
 library(MplusAutomation)
 names(in.dat)
-question.names <- names(in.dat)[2:88]
+question.names <- names(in.dat)[3:89]
 all.cats <- unique(strSplitMatrixReturn(question.names, "_")[,1])
-setwd("./data/aud87/audMPlus/")
 i <- all.cats[1]
-iso.dat <- grep(pattern = i, x = names(in.dat)[1:88])
+iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
 iso.dat <- in.dat[,iso.dat]
 ## rm the na rows
 iso.dat <- iso.dat[complete.cases(iso.dat),]
@@ -22,8 +21,9 @@ mat.one <- iso.dat
 mat.two <- iso.dat
 mat.one[mat.one>1] <- 1
 mat.two[mat.two==0] <- NA
+setwd("./data/aud87/audMPlus/")
 for(i in all.cats){
-  iso.dat <- grep(pattern = i, x = names(in.dat)[1:88])
+  iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
   iso.dat <- in.dat[,iso.dat]
   iso.dat <- iso.dat[complete.cases(iso.dat),]
   for(l in 2:6){
@@ -73,12 +73,12 @@ theta1 <- seq(-8,8,0.2) # Quadrature points for theta1
 theta2 <- seq(-8,8,0.2) # Quadrature points for theta1
 theta <- expand.grid(theta1, theta2)
 names(theta) <- c("theta1", "theta2")
-for(index in c(1:9,11)){
+for(index in c(1:11)){
   i <- all.cats[index]
   all.dat <- NULL
   scores.dat <- list()
   for(l in 2:6){
-    iso.dat <- grep(pattern = i, x = names(in.dat)[1:88])
+    iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
     iso.dat <- in.dat[,iso.dat]
     iso.dat <- iso.dat[complete.cases(iso.dat),]
     mat.one <- iso.dat
@@ -115,8 +115,8 @@ for(index in c(1:9,11)){
     rho <- mod$parameters$unstandardized$est[which(mod$parameters$unstandardized$paramHeader=="SEVERITY.WITH")]
     ## Now combine these all and attach them to output
     ## Fix column names here 
-    all.params <- cbind(i, l, rho,a_z$est, b_z$est, a$est, b_orgStand)
-    prepVec <- c("subscale","capval","rho","est_z_discrim","est_z_diff","est_grm_discrim")
+    all.params <- cbind(i, l, 1:length(a$est),rho,a_z$est, b_z$est, a$est, b_orgStand)
+    prepVec <- c("subscale","capval","item","rho","est_z_discrim","est_z_diff","est_grm_discrim")
     grmDiffVec <- (dim(all.params)[2] - length(prepVec))
     grmEstVec <- paste("est_grm_diff_", 1:grmDiffVec, sep='')
     prepVec <- c(prepVec, grmEstVec)
@@ -157,21 +157,24 @@ for(index in c(1:9,11)){
   tmp.dat.scores[[i]] <- scores.dat
 }
 tmp.dat1 <- tmp.dat
-#saveRDS(tmp.dat, file="~/forAshleyAUD.RDS")
 
 ## Now do the reverse windsor
 for(i in all.cats){
-  iso.dat <- grep(pattern = i, x = names(in.dat)[1:88])
+  iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
   iso.dat <- in.dat[,iso.dat]
   iso.dat <- iso.dat[complete.cases(iso.dat),]
-  for(l in 2:4){
+  for(l in 2:3){
     mat.one <- iso.dat
     mat.one[mat.one>1] <- 1
     mat.two <- iso.dat
     mat.two[mat.two==0] <- NA
-    mat.two[mat.two<l] <- l
+    mat.two[mat.two<=l] <- 1
     ## Now reduce all l so the minimum is 1
-    mat.two <- mat.two - diff(c(1, min(mat.two, na.rm = TRUE)))
+    l.min <- l-1
+    for(f in 1:ncol(mat.two)){
+      index <- which(mat.two[,f] > l)
+      mat.two[index,f] <- mat.two[index,f]-l.min
+    }
     #mat.two <- mat.two-l
     ## Now prep the mplus code
     all.dat <- cbind(mat.one, mat.two)
@@ -205,21 +208,28 @@ for(i in all.cats){
     runModels(target = out.file.name)
   }
 }
-
-
 tmp.dat <- list()
-for(index in c(1:9,11)){
+tmp.dat.scores <- list()
+theta1 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta2 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta <- expand.grid(theta1, theta2)
+names(theta) <- c("theta1", "theta2")
+for(index in c(1:11)){
   i <- all.cats[index]
-  iso.dat <- grep(pattern = i, x = names(in.dat)[1:88])
-  iso.dat <- in.dat[,iso.dat]
-  iso.dat <- iso.dat[complete.cases(iso.dat),]
   all.dat <- NULL
-  for(l in 2:4){
+  scores.dat <- list()
+  for(l in 2:3){
+    iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
+    iso.dat <- in.dat[,iso.dat]
+    iso.dat <- iso.dat[complete.cases(iso.dat),]
+    mat.two <- iso.dat
     mat.one <- iso.dat
     mat.one[mat.one>1] <- 1
     mat.two <- iso.dat
     mat.two[mat.two==0] <- NA
-    mat.two[mat.two>=l] <- l
+    mat.two[mat.two<l & mat.two>0] <- 1
+    ## Now reduce all l so the minimum is 1
+    mat.two <- mat.two - diff(c(1, min(mat.two, na.rm = TRUE)))
     #mat.two <- mat.two-l
     ## Now prep the mplus code
     all.dat <- cbind(mat.one, mat.two)
@@ -249,8 +259,8 @@ for(index in c(1:9,11)){
     rho <- mod$parameters$unstandardized$est[which(mod$parameters$unstandardized$paramHeader=="SEVERITY.WITH")]
     ## Now combine these all and attach them to output
     ## Fix column names here 
-    all.params <- cbind(i, l, rho,a_z$est, b_z$est, a$est, b_orgStand)
-    prepVec <- c("subscale","capval","rho","est_z_discrim","est_z_diff","est_grm_discrim")
+    all.params <- cbind(i, l, 1:length(a$est),rho,a_z$est, b_z$est, a$est, b_orgStand)
+    prepVec <- c("subscale","capval","item","rho","est_z_discrim","est_z_diff","est_grm_discrim")
     grmDiffVec <- (dim(all.params)[2] - length(prepVec))
     grmEstVec <- paste("est_grm_diff_", 1:grmDiffVec, sep='')
     prepVec <- c(prepVec, grmEstVec)
@@ -266,23 +276,50 @@ for(index in c(1:9,11)){
     iso.dat$se2PL_Hurdle <- NA
     iso.dat$eapGRM_Hurdle <- NA
     iso.dat$seGRM_Hurdle <- NA
-    for(respondent in 1:nrow(iso.dat)) {
-      pattern <- iso.dat[respondent,1:6]
-      qpoints <- theta
-      lhood <- score(pattern, itemtrace, qpoints)
-      
-      eap2PL_Hurdle <- sum(lhood*prior*qpoints$theta1)/sum(lhood*prior)
-      se2PL_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta1-eap2PL_Hurdle)^2)/sum(lhood*prior))
-      iso.dat$eap2PL_Hurdle[respondent] <- eap2PL_Hurdle
-      iso.dat$se2PL_Hurdle[respondent] <- se2PL_Hurdle
-      
-      eapGRM_Hurdle <- sum(lhood*prior*qpoints$theta2)/sum(lhood*prior)
-      seGRM_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta2-eapGRM_Hurdle)^2)/sum(lhood*prior))
-      iso.dat$eapGRM_Hurdle[respondent] <- eapGRM_Hurdle
-      iso.dat$seGRM_Hurdle[respondent] <- seGRM_Hurdle
-    }
+    prior <- mvtnorm::dmvnorm(theta, c(0, 0), matrix(c(1, rho, rho, 1), 2, 2, byrow = T))
+    itemtrace <- trace.line.pts(a$est, b_orgStand, a_z$est, b_z$estStand, theta)
   }
   tmp.dat[[i]]$parameters <- targ
   tmp.dat[[i]]$scores <- iso.dat
+  tmp.dat.scores[[i]] <- scores.dat
 }
 tmp.dat2 <- tmp.dat
+
+## Examine differences in parameter estimate values across method 1 & 2 here
+iso.dat <- tmp.dat1[[1]]$parameters
+iso.dat$method <- "depression"
+iso.dat2 <- tmp.dat2[[1]]$parameters
+iso.dat2$method <- "expansion"
+## Combine these
+iso.datA <- bind_rows(iso.dat, iso.dat2)
+tmp <- merge(iso.dat, iso.dat2, by=c("subscale", "capval", "item"), suffixes = c("_depression", "_expansion"))
+plot(tmp$est_z_diff_depression, tmp$est_z_diff_expansion)
+
+## Now run some pure 1 dimensional GRM models
+all.output <- NULL
+for(index in c(1:11)){
+  i <- all.cats[index]
+  iso.dat <- grep(pattern = i, x = names(in.dat)[1:89])
+  iso.dat <- in.dat[,iso.dat]
+  iso.dat <- iso.dat[complete.cases(iso.dat),]
+  mod.grm <- mirt::mirt(iso.dat, model=1, itemtype = "graded")
+  ## Now get the AIC & BIC from the hurdle models for these data
+  in.file.name <- paste(i,"_6.out", sep='')
+  mod.hur <- readModels(target=in.file.name)
+  ## Now prep this output
+  output.summarie <- data.frame("SCALE" = i, "GRM_BIC" = mod.grm@Fit$BIC, "HUR_BIC" = mod.hur$summaries$BIC,
+                                "GRM_AIC" = mod.grm@Fit$AIC, "HUR_AIC" = mod.hur$summaries$AIC)
+  all.output <- bind_rows(all.output, output.summarie)
+}
+## Now plot these
+all.output <- reshape2::melt(all.output, id.vars="SCALE")
+all.output$TYPE <- strSplitMatrixReturn(charactersToSplit = all.output$variable, "_")[,2]
+all.output$MOD <- strSplitMatrixReturn(charactersToSplit = all.output$variable, "_")[,1]
+tmp <- ggplot(all.output, aes(x=MOD, y=value)) +
+  geom_bar(stat="identity") +
+  facet_grid(TYPE ~ SCALE, scales="free") +
+  ylab("[A-B]IC") +
+  coord_cartesian(ylim=c(5000, 30000)) +
+  theme(axis.text.x = element_text(angle=35))
+  
+ggsave(filename = "~/Documents/hurdleModelExplore/data/GRMversusHurdleInformation.png",plot=tmp)
