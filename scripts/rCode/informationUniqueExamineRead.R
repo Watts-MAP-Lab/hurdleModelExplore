@@ -32,7 +32,6 @@ for(i in in.dat){
   tmp.2 <- dplyr::bind_rows(tmp.2)
   tmp.2$seedVal <- seedVal
   all.expand <- dplyr::bind_rows(all.expand, tmp.2)
-  
 }
 ## Grab the rho error
 all.collapse$error <- all.collapse$rhoTrue - all.collapse$rho
@@ -59,27 +58,43 @@ all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri
                             sim.param.difgrmF, sim.param.difgrmC, sim.iter)
 colnames(all.sim.vals) <- c("nItem", "nCategory", "discrim", "diff2PLF","diff2PLC", "n", "facCor", "difGrmF","difGrmC" ,"iter")
 all.sim.vals$seed <- 1:nrow(all.sim.vals)
+all.collapse$nResp <- all.collapse$`ncol(x)` - 16
+all.expand$nResp <- all.expand$`ncol(x)` - 16
 all.dat.collapse <- merge(all.collapse, all.sim.vals, by.x = "seedVal", by.y="seed")
 ## Turn these into factors
-for(i in c("nItem", "nCategory", "discrim", "diff2PLF","diff2PLC", "n", "difGrmF","difGrmC" ,"iter", "ncol(x)", "rhoTrue")){
+for(i in c("nItem", "nCategory", "discrim", "diff2PLF","diff2PLC", "n", "difGrmF","difGrmC" ,"iter", "nResp", "rhoTrue")){
   all.dat.collapse[,i] <- factor(all.dat.collapse[,i])
 }
-all.dat.collapse$nCol <- all.dat.collapse$`ncol(x)`
 ## Now i need to isolate unique permutations
 all.dat.collapse$uniqueIdent <- paste(all.dat.collapse$seedVal, all.dat.collapse$item, all.dat.collapse$nCol)
 all.dat.collapse <- all.dat.collapse[!duplicated(all.dat.collapse),]
 
 ## Now run anova
-mod.one <- lm(error ~ (nCol + nItem + diff2PLF + diff2PLC + facCor + difGrmF + difGrmC)^3, data = all.dat.collapse)
+mod.one <- lm(error ~ (nResp + nItem + diff2PLF + diff2PLC + facCor + difGrmF + difGrmC)^4, data = all.dat.collapse)
 mod.one.res <- car::Anova(mod.one)
 effectsize::eta_squared(mod.one.res)
 #alias(mod.one)
 #car::Anova(mod.one)
 library(visreg)
 ## Now ggplot these me
-all.me.vals <- c("nCol", "nItem", "diff2PLF","diff2PLC", "facCor", "difGrmF","difGrmC")
-d1 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c("nCol", "rhoTrue"))
+all.me.vals <- c("nResp", "nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC", "rhoTrue")
+d1 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c("nCol"))
 d1$colVal <- "nCol"
+colnames(d1)[1] <- "facLevel"
+for(i in all.me.vals[-1]){
+  d2 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c(i))
+  d2$colVal <- i
+  colnames(d2)[1] <- "facLevel"
+  d1 <- dplyr::bind_rows(d1, d2)
+}
+p1 <- ggplot(d1, aes(x=facLevel, y=rho)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
+  facet_wrap(colVal ~ ., scales = "free")
+## Now do the two-way interaction with the true rho values
+all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c("nResp", "rhoTrue"))
+d1$colVal <- "nResp"
 colnames(d1)[1] <- "facLevel"
 for(i in all.me.vals[-1]){
   d2 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c(i, "rhoTrue"))
@@ -91,26 +106,24 @@ p1 <- ggplot(d1, aes(x=facLevel, y=rho, group=rhoTrue, fill=rhoTrue)) +
   geom_bar(position="dodge", stat="identity") +
   geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
+
 ## Now do the same for expand
 all.dat.expand <- merge(all.expand, all.sim.vals, by.x = "seedVal", by.y="seed")
-for(i in c("nItem", "nCategory", "discrim", "diff2PLF","diff2PLC", "n", "facCor", "difGrmF","difGrmC" ,"iter", "ncol(x)", "rhoTrue")){
+for(i in c("nItem", "nCategory", "nResp","discrim", "diff2PLF","diff2PLC", "n", "difGrmF","difGrmC" ,"iter", "ncol(x)", "rhoTrue")){
   all.dat.expand[,i] <- factor(all.dat.expand[,i])
 }
-all.dat.expand$nCol <- all.dat.expand$`ncol(x)`
-all.dat.expand$nCol <- factor(all.dat.expand$nCol)
 all.dat.expand$uniqueIdent <- paste(all.dat.expand$seedVal, all.dat.expand$item, all.dat.expand$nCol)
 all.dat.expand <- all.dat.expand[!duplicated(all.dat.expand),]
-mod.two <- lm(error ~ (nCol + nItem + diff2PLF + diff2PLC + difGrmF + difGrmC + rhoTrue)^4, data = all.dat.expand)
+mod.two <- lm(error ~ (nResp + nItem + diff2PLF + diff2PLC + difGrmF + difGrmC + rhoTrue)^4, data = all.dat.expand)
 aov.res <- car::Anova(mod.two)
 ef.sizes <- effectsize::cohens_f(aov.res)
 effectsize::eta_squared(aov.res)
 # visreg(mod.two, "nCol")
 # visreg(mod.two, "nCol", "rhoTrue")
 #visreg(mod.one, "nCol")
-
-all.me.vals <- c("nCol", "nItem", "diff2PLF","diff2PLC", "facCor", "difGrmF","difGrmC")
-d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = "nCol")
-d1$colVal <- "nCol"
+all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "rhoTrue", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = "nResp")
+d1$colVal <- "nResp"
 colnames(d1)[1] <- "facLevel"
 for(i in all.me.vals[-1]){
   d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = i)
@@ -125,9 +138,9 @@ p2 <- ggplot(d1, aes(x=facLevel, y=rho)) +
   facet_wrap(colVal ~ ., scales = "free")
 
 ## Now do all of these with the true Rho
-all.me.vals <- c("nCol", "nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC")
-d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("nCol", "rhoTrue"))
-d1$colVal <- "nCol"
+all.me.vals <- c("nResp", "nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("nResp", "rhoTrue"))
+d1$colVal <- "nResp"
 colnames(d1)[1] <- "facLevel"
 for(i in all.me.vals[-1]){
   d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c(i, "rhoTrue"))
@@ -140,34 +153,94 @@ p2 <- ggplot(d1, aes(x=facLevel, y=rho, group=rhoTrue, fill=rhoTrue)) +
   geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
 
-## Now do these all with ncol
-all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "facCor", "difGrmF","difGrmC")
-d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("rhoTrue", "nCol"))
-d1$colVal <- "nCol"
+## Now do the same for the nResp
+all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("rhoTrue", "nResp"))
+d1$colVal <- "rhoTrue"
 colnames(d1)[1] <- "facLevel"
-for(i in all.me.vals[-1]){
-  d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c(i, "nCol"))
+for(i in all.me.vals){
+  d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c(i, "nResp"))
   d2$colVal <- i
   colnames(d2)[1] <- "facLevel"
   d1 <- dplyr::bind_rows(d1, d2)
 }
-ggplot(d1, aes(x=facLevel, y=rho, group=nCol, fill=nCol)) +
+p2 <- ggplot(d1, aes(x=facLevel, y=rho, group=nResp, fill=nResp)) +
   geom_bar(position="dodge", stat="identity") +
   geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
 
-## Now do all two-way interactions with the nCOl varaible
-all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "facCor", "difGrmF","difGrmC")
-d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("rhoTrue", "nCol"))
-d1$colVal <- "rhoTrue"
+## Now all threeway interaction between rhoTrue & nResp
+all.me.vals <- c("diff2PLF","diff2PLC", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("nItem", "rhoTrue", "nResp"))
+d1$colVal <- "nItem"
 colnames(d1)[1] <- "facLevel"
-for(i in all.me.vals[-1]){
-  d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c(i, "nCol"))
+for(i in all.me.vals){
+  d2 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c(i, "rhoTrue","nResp"))
   d2$colVal <- i
   colnames(d2)[1] <- "facLevel"
   d1 <- dplyr::bind_rows(d1, d2)
 }
-ggplot(d1, aes(x=facLevel, y=rho, group=nCol, fill=nCol)) +
+p3 <- ggplot(d1, aes(x=facLevel, y=rho, group=nResp, fill=nResp)) +
   geom_bar(position="dodge", stat="identity") +
   geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
+  facet_grid(rhoTrue ~ colVal, scales = "free")
+
+d1 <- summarySE(data = all.dat.expand, measurevar = "rho", groupvars = c("difGrmF", "difGrmC", "rhoTrue"))
+p3 <- ggplot(d1, aes(x=difGrmF, y=rho, group=rhoTrue, fill=rhoTrue)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin = rho - se, ymax = rho + se),position="dodge") +
+  facet_grid(. ~ difGrmC, scales = "free")
+
+## Now do 2PL difficulty estimation error?
+## First create the error terms
+all.collapse$diff2PLError <- all.collapse$true_z_diff - all.collapse$est_z_diff
+all.expand$diff2PLError <- all.expand$est_z_diff - all.expand$true_z_diff
+## Now model these?
+all.dat.collapse <- merge(all.collapse, all.sim.vals, by.x = "seedVal", by.y="seed")
+## Turn these into factors
+for(i in c("nItem", "nCategory", "discrim", "diff2PLF","diff2PLC", "n", "difGrmF","difGrmC" ,"iter", "nResp", "rhoTrue")){
+  all.dat.collapse[,i] <- factor(all.dat.collapse[,i])
+}
+mod.thr <- lm(diff2PLError ~ (nResp + nItem + diff2PLF + diff2PLC + facCor + difGrmF + difGrmC)^4, data = all.dat.collapse)
+mod.res <- car::Anova(mod.thr)
+effectsize::eta_squared(mod.res)
+## Now do the expand
+all.dat.expand <- merge(all.expand, all.sim.vals, by.x = "seedVal", by.y="seed")
+for(i in c("nItem", "nCategory", "nResp","discrim", "diff2PLF","diff2PLC", "n", "difGrmF","difGrmC" ,"iter", "ncol(x)", "rhoTrue")){
+  all.dat.expand[,i] <- factor(all.dat.expand[,i])
+}
+mod.fou <- lm(diff2PLError ~ (nResp + nItem + diff2PLF + diff2PLC + facCor + difGrmF + difGrmC)^4, data = all.dat.expand)
+mod.res <- car::Anova(mod.fou)
+effectsize::eta_squared(mod.res)[order(effectsize::eta_squared(mod.res)[,2], decreasing = TRUE),]
+
+all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "rhoTrue", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "diff2PLError", groupvars = "nResp")
+d1$colVal <- "nResp"
+colnames(d1)[1] <- "facLevel"
+for(i in all.me.vals){
+  d2 <- summarySE(data = all.dat.expand, measurevar = "diff2PLError", groupvars = i)
+  d2$colVal <- i
+  colnames(d2)[1] <- "facLevel"
+  d1 <- dplyr::bind_rows(d1, d2)
+}
+p2 <- ggplot(d1, aes(x=facLevel, y=diff2PLError)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = diff2PLError - se, ymax = diff2PLError + se)) +
+  facet_wrap(colVal ~ ., scales = "free") +
+  ylab("Error (Est - True)")
+
+## Now do the same for the nResp
+all.me.vals <- c("nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC")
+d1 <- summarySE(data = all.dat.expand, measurevar = "diff2PLError", groupvars = c("rhoTrue", "nResp"))
+d1$colVal <- "rhoTrue"
+colnames(d1)[1] <- "facLevel"
+for(i in all.me.vals){
+  d2 <- summarySE(data = all.dat.expand, measurevar = "diff2PLError", groupvars = c(i, "nResp"))
+  d2$colVal <- i
+  colnames(d2)[1] <- "facLevel"
+  d1 <- dplyr::bind_rows(d1, d2)
+}
+p2 <- ggplot(d1, aes(x=facLevel, y=diff2PLError, group=nResp, fill=nResp)) +
+  geom_bar(position="dodge", stat="identity") +
+  geom_errorbar(aes(ymin = diff2PLError - se, ymax = diff2PLError + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
