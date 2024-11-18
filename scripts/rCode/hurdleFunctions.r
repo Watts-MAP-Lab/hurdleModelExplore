@@ -89,79 +89,83 @@ itemtraceGRM <- function(a, b, theta){
 # sigma = var cov mat (matrix)
 # N = sample size
 # k = categories
-simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
+simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL, theta=NULL){
     ## First obtain the theta values
+  if(!is.null(N) & is.null(theta)){  
     theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
-    numItems = length(a)
-    num_categories = dim(b)[2] + 2
-    ## First go through an obtain all of the response probabilities for the 2PL portion of the model
-    ## This is the susceptibility factor
-    # Prep a matrix to store all of the prob of endorsements here
-    responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
-    for(i in 1:N){
-        for(j in 1:length(a)){
-            #p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
-            p_z = 1 - exp(a_z[j] * (theta[i, 1] - b_z[j])) / (1 + exp(a_z[j] * (theta[i, 1] - b_z[j])))
-            p_1 = 1 - p_z
-            responseProb2PL[i,j] = p_1
-        }
-    }
-    ## Now go through and obtain the response prob from the GRM portion
-    initVector <- rep(NA, (N*numItems*(num_categories-1)))
-    responseProbGRM = array(initVector, c(N, numItems, (num_categories-1)))
-    ## Now go through and 4estimate response probs from the GRM
-    for (j in 1:numItems) {
-        aj <- a[j]  # Discrimination parameter for item j
-        bj <- b[j,]  # Threshold parameters for item j
-        # Loop through examinees
-        for (i in 1:N) {
-            category_probs <- itemtraceGRM(aj, bj, theta[i,2])  
-            # Generate response based on category probabilities
-            for(k in 1:num_categories-1){
-                responseProbGRM[i, j,k] <- category_probs[k]
-            }
-        }
-    }
-
+  }
+  if(!is.null(theta) & is.null(N)){
+    N = dim(theta)[1]
+  }
+  numItems = length(a)
+  num_categories = dim(b)[2] + 2
+  ## First go through an obtain all of the response probabilities for the 2PL portion of the model
+  ## This is the susceptibility factor
+  # Prep a matrix to store all of the prob of endorsements here
+  responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
+  for(i in 1:N){
+      for(j in 1:length(a)){
+          #p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
+          p_z = 1 - exp(a_z[j] * (theta[i, 1] - b_z[j])) / (1 + exp(a_z[j] * (theta[i, 1] - b_z[j])))
+          p_1 = 1 - p_z
+          responseProb2PL[i,j] = p_1
+      }
+  }
+  ## Now go through and obtain the response prob from the GRM portion
+  initVector <- rep(NA, (N*numItems*(num_categories-1)))
+  responseProbGRM = array(initVector, c(N, numItems, (num_categories-1)))
+  ## Now go through and 4estimate response probs from the GRM
+  for (j in 1:numItems) {
+      aj <- a[j]  # Discrimination parameter for item j
+      bj <- b[j,]  # Threshold parameters for item j
+      # Loop through examinees
+      for (i in 1:N) {
+          category_probs <- itemtraceGRM(aj, bj, theta[i,2])  
+          # Generate response based on category probabilities
+          for(k in 1:num_categories-1){
+              responseProbGRM[i, j,k] <- category_probs[k]
+          }
+      }
+  }
     ## Now I need to turn this into response categories
-    responses = matrix(NA, nrow = N, ncol = numItems)
-    for(i in 1:N){
-        for( j in 1:numItems){
-            ## Create a vector of probabilities
-            tmp_probs <- rep(NA, num_categories)
-            for(k in 1:num_categories){
-                if(k == 1){
-                    tmp_probs[k] <- 1 - responseProb2PL[i,j]
-                }else{
-                    tmp_probs[k] <- ((responseProb2PL[i,j])) * responseProbGRM[i,j,k-1]
-                }
-            }
-            responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
-        }
-    }
-    ## Now caluclate the cross tabs
-    responses2 <- data.frame(responses)
-    crosstab <- responses2 %>%
-        group_by(across(everything())) %>%
-        summarise(Count = n(), .groups = "drop") %>%
-        ungroup()
-    ## Now prep the dataframe for MPlus hurdle extension
-    ## Now make the matrix for these data
-    matrix.mplus1 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
-    matrix.mplus2 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
-    
-    ## Now make the binary indicators first
-    matrix.mplus1<- responses
-    matrix.mplus1[which(matrix.mplus1[,1:ncol(responses)]>0)] <- 1
-    ## Now do severity indicators here
-    matrix.mplus2 <- responses
-    matrix.mplus2[which(matrix.mplus2==0)] <- NA
-    matrix.mplus <- cbind(matrix.mplus1, matrix.mplus2)
-    
-    ## Now return everything
-    out.data = list(responses = responses, theta = data.frame(theta), tabs = crosstab,
-    a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
-    return(out.data)
+  responses = matrix(NA, nrow = N, ncol = numItems)
+  for(i in 1:N){
+      for( j in 1:numItems){
+          ## Create a vector of probabilities
+          tmp_probs <- rep(NA, num_categories)
+          for(k in 1:num_categories){
+              if(k == 1){
+                  tmp_probs[k] <- 1 - responseProb2PL[i,j]
+              }else{
+                  tmp_probs[k] <- ((responseProb2PL[i,j])) * responseProbGRM[i,j,k-1]
+              }
+          }
+          responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
+      }
+  }
+  ## Now caluclate the cross tabs
+  responses2 <- data.frame(responses)
+  crosstab <- responses2 %>%
+      group_by(across(everything())) %>%
+      summarise(Count = n(), .groups = "drop") %>%
+      ungroup()
+  ## Now prep the dataframe for MPlus hurdle extension
+  ## Now make the matrix for these data
+  matrix.mplus1 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
+  matrix.mplus2 <- matrix(NA, nrow = nrow(responses), ncol=ncol(responses))
+  
+  ## Now make the binary indicators first
+  matrix.mplus1<- responses
+  matrix.mplus1[which(matrix.mplus1[,1:ncol(responses)]>0)] <- 1
+  ## Now do severity indicators here
+  matrix.mplus2 <- responses
+  matrix.mplus2[which(matrix.mplus2==0)] <- NA
+  matrix.mplus <- cbind(matrix.mplus1, matrix.mplus2)
+  
+  ## Now return everything
+  out.data = list(responses = responses, theta = data.frame(theta), tabs = crosstab,
+  a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
+  return(out.data)
 }
 
 ## Now take a make a function which will take the output of the julia function and return the parameters for the
