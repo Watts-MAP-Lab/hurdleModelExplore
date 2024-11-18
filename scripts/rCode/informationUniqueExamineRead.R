@@ -2,37 +2,42 @@
 source("~/GitHub/adroseHelperScripts/R/afgrHelpFunc.R")
 library(ggplot2)
 library(visreg)
-## This will be used to read all hurdle collapse values
-in.dat1 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[1-9].RDS", full.names = TRUE)
-in.dat2 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[0-9][0-9].RDS", full.names = TRUE)
-in.dat3 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[1][0-4][0-4].RDS", full.names = TRUE)
+# ## This will be used to read all hurdle collapse values
+# in.dat1 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[1-9].RDS", full.names = TRUE)
+# in.dat2 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[0-9][0-9].RDS", full.names = TRUE)
+# in.dat3 <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = "*_[1][0-4][0-4].RDS", full.names = TRUE)
+# 
+# ## Combine these
+# in.dat <- c(in.dat1, in.dat2, in.dat3)
+# in.dat <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = ".RDS", full.names = TRUE)
+#   
+# ## Collapse all of the estimated models
+# all.collapse <- NULL
+# all.expand <- NULL
+# for(i in in.dat){
+#   tmp <- readRDS(i)
+#   ## Idenitfy the seed val
+#   seedVal1 <- basename(i)
+#   seedVal <- strsplit(strsplit(basename(i), "_")[[1]][2], ".RDS")[[1]][1]
+#   ## Now print this
+#   #print(c(seedVal1, seedVal))
+#   ## Remove all indices where modFail
+#   tmp.1 <- tmp[[1]]
+#   tmp.1 <- lapply(tmp.1, function(x) cbind(x, ncol(x)))
+#   tmp.1 <- dplyr::bind_rows(tmp.1)
+#   tmp.1$seedVal <- seedVal
+#   all.collapse <- dplyr::bind_rows(all.collapse, tmp.1)
+#   tmp.2 <- tmp[[2]]
+#   tmp.2 <- lapply(tmp.2, function(x) cbind(x, ncol(x)))
+#   tmp.2 <- dplyr::bind_rows(tmp.2)
+#   tmp.2$seedVal <- seedVal
+#   all.expand <- dplyr::bind_rows(all.expand, tmp.2)
+# }
+# saveRDS(all.collapse, file = "./data/allCollapse.RDS")
+# saveRDS(all.expand, file = "./data/allExpand.RDS")
+all.collapse <- readRDS("./data/allCollapse.RDS")
+all.expand <- readRDS("./data/allExpand.RDS")
 
-## Combine these
-in.dat <- c(in.dat1, in.dat2, in.dat3)
-in.dat <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = ".RDS", full.names = TRUE)
-  
-## Collapse all of the estimated models
-all.collapse <- NULL
-all.expand <- NULL
-for(i in in.dat){
-  tmp <- readRDS(i)
-  ## Idenitfy the seed val
-  seedVal1 <- basename(i)
-  seedVal <- strsplit(strsplit(basename(i), "_")[[1]][2], ".RDS")[[1]][1]
-  ## Now print this
-  #print(c(seedVal1, seedVal))
-  ## Remove all indices where modFail
-  tmp.1 <- tmp[[1]]
-  tmp.1 <- lapply(tmp.1, function(x) cbind(x, ncol(x)))
-  tmp.1 <- dplyr::bind_rows(tmp.1)
-  tmp.1$seedVal <- seedVal
-  all.collapse <- dplyr::bind_rows(all.collapse, tmp.1)
-  tmp.2 <- tmp[[2]]
-  tmp.2 <- lapply(tmp.2, function(x) cbind(x, ncol(x)))
-  tmp.2 <- dplyr::bind_rows(tmp.2)
-  tmp.2$seedVal <- seedVal
-  all.expand <- dplyr::bind_rows(all.expand, tmp.2)
-}
 ## Grab the rho error
 all.collapse$error <- all.collapse$rhoTrue - all.collapse$rho
 plot(all.collapse$error, all.collapse$`ncol(x)`)
@@ -78,7 +83,7 @@ effectsize::eta_squared(mod.one.res)
 library(visreg)
 ## Now ggplot these me
 all.me.vals <- c("nResp", "nItem", "diff2PLF","diff2PLC", "difGrmF","difGrmC", "rhoTrue")
-d1 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c("nCol"))
+d1 <- summarySE(data = all.dat.collapse, measurevar = "rho", groupvars = c("nResp"))
 d1$colVal <- "nCol"
 colnames(d1)[1] <- "facLevel"
 for(i in all.me.vals[-1]){

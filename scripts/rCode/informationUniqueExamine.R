@@ -3,8 +3,8 @@
 ## and changing response patterns by collapsing response categories into one another
 ## This will be performed using three separate strategies:
 ##  1. Winsorization: Taking the highest response category and collapsing it into the next highest
-##  2. Rec Winsor: Collapsing the lowest resposne category into the 0 response
-##  3. Total information preservation: Identify the difficulty parameter that by removing would preserev the total information; total information will be taken as the integral of the test informaiton function
+##  2. Rec Winsor: Collapsing the lowest response category into the 0 response
+##  3. Total information preservation: Identify the difficulty parameter that by removing would preserve the total information; total information will be taken as the integral of the test informaiton function
 
 ##### --load-library-------------
 source("./scripts/rCode/hurdleFunctions.r")
@@ -117,6 +117,7 @@ prob.endorse.grm.ret <- function(a,b, min=FALSE, max=FALSE, b1=NULL){
 
 strat.one <- lapply(3:7, function(x) retWinsorMat(x, reps$responses))
 strat.two <- lapply(3:7, function(x) retRevWinsorMat(x, reps$responses))
+
 ## Now estimate the mplus models across all of these models
 ## This means I am going to have to create another function which will perform
 ## all of the prep for the MPlus models, this includes:
