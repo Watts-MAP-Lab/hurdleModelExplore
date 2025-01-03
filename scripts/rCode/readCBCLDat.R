@@ -199,3 +199,245 @@ to.plot$subscale <- rownames(to.plot)
 ggplot(to.plot, aes(x=subscale, y=value)) +
   geom_bar(position="dodge", stat="identity") +
   theme_bw() + coord_cartesian(ylim=c(.45, .95))
+
+## Now look into the total E and total I variables
+## This will take a lot of coding, most likely performed outside of R
+## But I will prep the data here
+## First grab the complete index for all I & E variables
+all.e <- c("AB", "RB")
+all_ext <- which(in_dict$subscale %in% all.e)
+index <- all_ext
+index <- index + 2
+## Now grab the resp data
+rep_vals <- in_dat[,index]
+## Drop any columns with less than 10 response endorsements
+rm.index <- which(apply(rep_vals, 2, function(x) length(which(x==2)))<15)
+if(length(rm.index > 0)){
+  rep_vals <- rep_vals[,-c(rm.index)]
+}
+rep_vals <- rep_vals[complete.cases(in_dat),]
+mat.one <- rep_vals
+mat.one[mat.one>1] <- 1
+mat.two <- rep_vals
+mat.two[mat.two==0] <- NA
+#mat.two <- mat.two-l
+## Now prep the mplus code
+all.dat <- cbind(mat.one, mat.two)
+colnames(all.dat) <- paste("X", 1:ncol(all.dat), sep='')
+## Now print these data
+## Now prep the mplus file
+first.dim <- ncol(mat.one)
+second.dim1 <- first.dim+1
+second.dim2 <- first.dim*2
+binary.vars <- colnames(all.dat)[1:first.dim]
+sev.var <- colnames(all.dat)[second.dim1:second.dim2]
+all.vars <- colnames(all.dat)
+p1 <- paste0("Presence BY ",paste0(binary.vars, collapse = " \n"))
+p1 <- gsub(pattern = "X1 ", replacement = "X1* ", x = p1)
+p2 <- paste0("Severity BY ",paste0(sev.var, collapse = "\n"))
+p2 <- gsub(pattern = sev.var[1], replacement = paste(sev.var[1], "*", sep=''), x = p2)
+p3 <- paste0("Usevariables = ", paste0(all.vars, collapse = "\n"))
+p4 <- paste0("Categorical = ", paste0(all.vars, collapse = "\n"))
+all.dat <- data.frame(all.dat)
+test <- MplusAutomation::mplusObject(TITLE = "testIRTree Model",
+                                     MODEL = paste0(p1,"; \n",
+                                                    p2, "; \n
+                                           Presence@1; Severity@1; \n
+                                           [Presence@0]; [Severity@0];"),
+                                     rdata = all.dat,
+                                     usevariables = all.vars,
+                                     VARIABLE = paste0(p3, "; \n",p4,";"),
+                                     ANALYSIS = "  Estimator = ML; \n Link = Logit; \n Integration = GAUSSHERMITE(15);")
+out.file.name <- paste("./data/cbclModels/allExt.inp", sep='')
+out.data.name <- paste("./data/cbclModels/allExt.txt", sep='')
+mplusModeler(test, dataout=out.data.name, modelout = out.file.name, run = TRUE)
+in.file.name <- paste("./data/cbclModels/allExt.out", sep='')
+mod <- readModels(target = in.file.name)
+a_z <- mod$parameters$unstandardized
+a_z <- a_z[grep(pattern = "PRESENCE.BY", x = a_z$paramHeader),]
+b_z <- mod$parameters$unstandardized
+b_z <- b_z[grep(pattern = "Thresholds", x = b_z$paramHeader),]
+b_z$itemVal <- strSplitMatrixReturn(b_z$param, "\\$")[,1]
+b_z <- b_z[which(b_z$itemVal %in% a_z$param),]
+b_z$estStand <- b_z$est / a_z$est
+a <- mod$parameters$unstandardized
+a <- a[grep(pattern = "SEVERITY.BY", x = a$paramHeader),]
+b <- mod$parameters$unstandardized
+b <- b[grep(pattern = "Thresholds", x = b$paramHeader),]
+b$itemVal <- strSplitMatrixReturn(b$param, "\\$")[,1]
+b$threshVal <- strSplitMatrixReturn(b$param, "\\$")[,2]
+b <- b[which(!b$itemVal %in% a_z$param),]
+## Now translate the b into proper format
+b_org <- tidyr::pivot_wider(b[,c("est", "itemVal", "threshVal")], id_cols = "itemVal", names_from = "threshVal", values_from = "est")[,-1]
+b_org <- data.frame(b_org)
+## Now convert these difficulty metrics into the standard normal scale
+b_orgStand <- apply(b_org, 2, function(x) x / a$est)
+rho <- mod$parameters$unstandardized$est[which(mod$parameters$unstandardized$paramHeader=="SEVERITY.WITH")]
+## Now prep these all for output
+all.params <- cbind(i, 1:length(a$est),rho,a_z$est, b_z$est, a$est, b_orgStand)
+prepVec <- c("subscale","item","rho","est_z_discrim","est_z_diff","est_grm_discrim")
+grmDiffVec <- (dim(all.params)[2] - length(prepVec))
+grmEstVec <- paste("est_grm_diff_", 1:grmDiffVec, sep='')
+prepVec <- c(prepVec, grmEstVec)
+all.params <- data.frame(all.params)
+colnames(all.params) <- prepVec
+all.params
+## Now do the factor scores here
+## Now do the EAP factor score estimation here
+all.dat$eap2PL_Hurdle <- NA
+all.dat$se2PL_Hurdle <- NA
+all.dat$eapGRM_Hurdle <- NA
+all.dat$seGRM_Hurdle <- NA
+theta1 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta2 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta <- expand.grid(theta1, theta2)
+names(theta) <- c("theta1", "theta2")
+prior <- mvtnorm::dmvnorm(theta, c(0, 0), matrix(c(1, rho, rho, 1), 2, 2, byrow = T))
+source("./scripts/rCode/hurdleFunctions.r")
+itemtrace <- trace.line.pts(a$est, b_orgStand, a_z$est, b_z$estStand, theta)
+for(respondent in 1:nrow(all.dat)) {
+  pattern <- all.dat[respondent,1:dim(mat.one)[2]]
+  qpoints <- theta
+  lhood <- score(pattern, itemtrace, qpoints)
+  
+  eap2PL_Hurdle <- sum(lhood*prior*qpoints$theta1)/sum(lhood*prior)
+  se2PL_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta1-eap2PL_Hurdle)^2)/sum(lhood*prior))
+  all.dat$eap2PL_Hurdle[respondent] <- eap2PL_Hurdle
+  all.dat$se2PL_Hurdle[respondent] <- se2PL_Hurdle
+  
+  eapGRM_Hurdle <- sum(lhood*prior*qpoints$theta2)/sum(lhood*prior)
+  seGRM_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta2-eapGRM_Hurdle)^2)/sum(lhood*prior))
+  all.dat$eapGRM_Hurdle[respondent] <- eapGRM_Hurdle
+  all.dat$seGRM_Hurdle[respondent] <- seGRM_Hurdle
+}
+out.listE <- list(params = all.params, factor_scores = all.dat)
+
+## Now do all Int
+all.i <- c("AD", "WD", "SC")
+all_int <- which(in_dict$subscale %in% all.i)
+index <- all_int
+index <- index + 2
+## Now grab the resp data
+rep_vals <- in_dat[,index]
+## Drop any columns with less than 10 response endorsements
+rm.index <- which(apply(rep_vals, 2, function(x) length(which(x==2)))<15)
+if(length(rm.index > 0)){
+  rep_vals <- rep_vals[,-c(rm.index)]
+}
+rep_vals <- rep_vals[complete.cases(in_dat),]
+mat.one <- rep_vals
+mat.one[mat.one>1] <- 1
+mat.two <- rep_vals
+mat.two[mat.two==0] <- NA
+#mat.two <- mat.two-l
+## Now prep the mplus code
+all.dat <- cbind(mat.one, mat.two)
+colnames(all.dat) <- paste("X", 1:ncol(all.dat), sep='')
+## Now print these data
+## Now prep the mplus file
+first.dim <- ncol(mat.one)
+second.dim1 <- first.dim+1
+second.dim2 <- first.dim*2
+binary.vars <- colnames(all.dat)[1:first.dim]
+sev.var <- colnames(all.dat)[second.dim1:second.dim2]
+all.vars <- colnames(all.dat)
+p1 <- paste0("Presence BY ",paste0(binary.vars, collapse = " \n"))
+p1 <- gsub(pattern = "X1 ", replacement = "X1* ", x = p1)
+p2 <- paste0("Severity BY ",paste0(sev.var, collapse = "\n"))
+p2 <- gsub(pattern = sev.var[1], replacement = paste(sev.var[1], "*", sep=''), x = p2)
+p3 <- paste0("Usevariables = ", paste0(all.vars, collapse = "\n"))
+p4 <- paste0("Categorical = ", paste0(all.vars, collapse = "\n"))
+all.dat <- data.frame(all.dat)
+test <- MplusAutomation::mplusObject(TITLE = "testIRTree Model",
+                                     MODEL = paste0(p1,"; \n",
+                                                    p2, "; \n
+                                           Presence@1; Severity@1; \n
+                                           [Presence@0]; [Severity@0];"),
+                                     rdata = all.dat,
+                                     usevariables = all.vars,
+                                     VARIABLE = paste0(p3, "; \n",p4,";"),
+                                     ANALYSIS = "  Estimator = ML; \n Link = Logit; \n Integration = GAUSSHERMITE(15);")
+out.file.name <- paste("./data/cbclModels/allInt.inp", sep='')
+out.data.name <- paste("./data/cbclModels/allInt.txt", sep='')
+mplusModeler(test, dataout=out.data.name, modelout = out.file.name, run = TRUE)
+in.file.name <- paste("./data/cbclModels/allInt.out", sep='')
+mod <- readModels(target = in.file.name)
+a_z <- mod$parameters$unstandardized
+a_z <- a_z[grep(pattern = "PRESENCE.BY", x = a_z$paramHeader),]
+b_z <- mod$parameters$unstandardized
+b_z <- b_z[grep(pattern = "Thresholds", x = b_z$paramHeader),]
+b_z$itemVal <- strSplitMatrixReturn(b_z$param, "\\$")[,1]
+b_z <- b_z[which(b_z$itemVal %in% a_z$param),]
+b_z$estStand <- b_z$est / a_z$est
+a <- mod$parameters$unstandardized
+a <- a[grep(pattern = "SEVERITY.BY", x = a$paramHeader),]
+b <- mod$parameters$unstandardized
+b <- b[grep(pattern = "Thresholds", x = b$paramHeader),]
+b$itemVal <- strSplitMatrixReturn(b$param, "\\$")[,1]
+b$threshVal <- strSplitMatrixReturn(b$param, "\\$")[,2]
+b <- b[which(!b$itemVal %in% a_z$param),]
+## Now translate the b into proper format
+b_org <- tidyr::pivot_wider(b[,c("est", "itemVal", "threshVal")], id_cols = "itemVal", names_from = "threshVal", values_from = "est")[,-1]
+b_org <- data.frame(b_org)
+## Now convert these difficulty metrics into the standard normal scale
+b_orgStand <- apply(b_org, 2, function(x) x / a$est)
+rho <- mod$parameters$unstandardized$est[which(mod$parameters$unstandardized$paramHeader=="SEVERITY.WITH")]
+## Now prep these all for output
+all.params <- cbind(i, 1:length(a$est),rho,a_z$est, b_z$est, a$est, b_orgStand)
+prepVec <- c("subscale","item","rho","est_z_discrim","est_z_diff","est_grm_discrim")
+grmDiffVec <- (dim(all.params)[2] - length(prepVec))
+grmEstVec <- paste("est_grm_diff_", 1:grmDiffVec, sep='')
+prepVec <- c(prepVec, grmEstVec)
+all.params <- data.frame(all.params)
+colnames(all.params) <- prepVec
+all.params
+## Now do the factor scores here
+## Now do the EAP factor score estimation here
+all.dat$eap2PL_Hurdle <- NA
+all.dat$se2PL_Hurdle <- NA
+all.dat$eapGRM_Hurdle <- NA
+all.dat$seGRM_Hurdle <- NA
+theta1 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta2 <- seq(-8,8,0.2) # Quadrature points for theta1
+theta <- expand.grid(theta1, theta2)
+names(theta) <- c("theta1", "theta2")
+prior <- mvtnorm::dmvnorm(theta, c(0, 0), matrix(c(1, rho, rho, 1), 2, 2, byrow = T))
+source("./scripts/rCode/hurdleFunctions.r")
+itemtrace <- trace.line.pts(a$est, b_orgStand, a_z$est, b_z$estStand, theta)
+for(respondent in 1:nrow(all.dat)) {
+  pattern <- all.dat[respondent,1:dim(mat.one)[2]]
+  qpoints <- theta
+  lhood <- score(pattern, itemtrace, qpoints)
+  
+  eap2PL_Hurdle <- sum(lhood*prior*qpoints$theta1)/sum(lhood*prior)
+  se2PL_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta1-eap2PL_Hurdle)^2)/sum(lhood*prior))
+  all.dat$eap2PL_Hurdle[respondent] <- eap2PL_Hurdle
+  all.dat$se2PL_Hurdle[respondent] <- se2PL_Hurdle
+  
+  eapGRM_Hurdle <- sum(lhood*prior*qpoints$theta2)/sum(lhood*prior)
+  seGRM_Hurdle <- sqrt(sum(lhood*prior*(qpoints$theta2-eapGRM_Hurdle)^2)/sum(lhood*prior))
+  all.dat$eapGRM_Hurdle[respondent] <- eapGRM_Hurdle
+  all.dat$seGRM_Hurdle[respondent] <- seGRM_Hurdle
+}
+out.listI <- list(params = all.params, factor_scores = all.dat)
+
+## Now look at the pairs across E & I hurdle factors
+all.vals <- bind_cols(out.listE$factor_scores, out.listI$factor_scores)
+plot.vals <- all.vals[,c(53,55,119,121)]
+colnames(plot.vals) <- c("pl2Ext", "grmExt", "pl2Int", "grmInt")
+GGally::ggpairs(plot.vals)
+## Look into E ~ I variables
+lm(grmExt ~ grmInt, data = plot.vals)
+
+## Now run a change point really quickly
+model <- list(
+  grmExt ~ 1 + grmInt,
+  ~ grmInt
+)
+library(mcp)
+mod <- mcp(model, data = plot.vals, cores = 3)
+model <- list(
+  pl2Ext ~ 1 + pl2Int,
+  ~ pl2Int
+)
+mod2 <- mcp(model, data = plot.vals, cores = 3)
