@@ -161,6 +161,11 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   matrix.mplus2 <- responses
   matrix.mplus2[which(matrix.mplus2==0)] <- NA
   matrix.mplus <- cbind(matrix.mplus1, matrix.mplus2)
+  ## Now make the column names
+  col.names.sus <- paste("Sus_", 1:ncol(matrix.mplus1), sep='')
+  col.names.sev <- paste("Sev_", 1:ncol(matrix.mplus2), sep='')
+  matrix.mplus <- data.frame(matrix.mplus)
+  colnames(matrix.mplus) <- c(col.names.sus, col.names.sev)
   
   ## Now return everything
   out.data = list(responses = responses, theta = data.frame(theta), tabs = crosstab,
@@ -283,4 +288,56 @@ score <- function(response_pattern, itemtrace, qPoints){
         lhood <- lhood*itemtrace[[indexval]][item,]
     }
     return(lhood)
+}
+
+estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = seq(-3, 3, .01)){
+  ## Estimate pre mirt model
+  est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
+  if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
+    ## Insert some artificial respones into the data
+    ## FIrst idenitfy which column has the issue
+    unique.resp.vals <- lapply(apply(est.data, 2,table), length)
+    ## Now idenitfy columns
+    inject.vals <- which.min(unique.resp.vals)
+    n.cats <- dim(b)[2]+1
+    for(i in inject.vals){
+      est.data[,i] <- sample(1:n.cats, size = nrow(est.data), replace=TRUE)
+    }
+  }
+  sv <- suppressWarnings(mirt(data=est.data, 1,itemtype= 'graded', pars = 'values'))
+  ## NOw organize true and est vals
+  slopeInt <- matrix(0, length(a), dim(b)[2] + 1)
+  ## Now make a dataframe of all of the discrim and diff values
+  input.vals <- data.frame(cbind(a, b))
+  for(i in 1:length(a)){
+    input.vector <- unlist(as.vector(input.vals[i,]))
+    slopeInt[i, ] <- traditional2mirt(input.vector, cls='graded', ncat=dim(b)[2]+1)
+  }
+  ## Now replace sv with these mirt values
+  sv$value[sv$name == 'a1'] <- slopeInt[,1]
+  ## Now do this for the rest of the difficulty values
+  d.values <- grep(pattern="^d", x = names(table(sv$name)), value = TRUE)
+  index.val <- 2
+  for(i in d.values){
+    sv$value[sv$name == i] <- slopeInt[,index.val]
+    index.val <- index.val + 1
+  }
+  sv$est <- FALSE
+  mod <- suppressWarnings(mirt(est.data, 1, pars=sv))
+  ## Now obtain all of the infromation values
+  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = cbind(thetaVals, thetaVals))
+  item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
+  test.info.2pl <- apply(item.info.2pl, 2, sum)
+  ## Now obtain the grm infromation here
+  vals.grm <- testinfo(mod, Theta = thetaVals,individual=TRUE)
+  ## Now multiply these?
+  item.info <- matrix(0, nrow=length(thetaVals), ncol = length(a))
+  for(i in 1:length(a)){
+    item.info[,i] <- test.info.2pl * vals.grm[,i]
+  }
+  test.info <- apply(item.info, 1, sum)
+  test.info.weight <- test.info * dnorm(thetaVals)
+  ## Now estimate the rel with these info functions
+  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dnorm(thetaVals))))
+  return(out.rel)
 }
