@@ -290,7 +290,15 @@ score <- function(response_pattern, itemtrace, qPoints){
     return(lhood)
 }
 
-estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = seq(-3, 3, .01)){
+dmnorm <- function(mu, sigma, x){
+  k <- ncol(sigma)
+  x <- t(x)
+  dmn <- exp((-1/2)*diag(t(x-mu)%*%solve(sigma)%*%(x- 
+                                                     mu)))/sqrt(((2*pi)^k)*det(sigma))  
+  dmn
+}
+
+estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
   ## Estimate pre mirt model
   est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
   if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
@@ -324,20 +332,144 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = seq(-3, 3, .01)){
   }
   sv$est <- FALSE
   mod <- suppressWarnings(mirt(est.data, 1, pars=sv))
-  ## Now obtain all of the infromation values
-  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = cbind(thetaVals, thetaVals))
+  ## Now obtain all of the information values
+  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = thetaVals)
   item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
   test.info.2pl <- apply(item.info.2pl, 2, sum)
-  ## Now obtain the grm infromation here
-  vals.grm <- testinfo(mod, Theta = thetaVals,individual=TRUE)
+  ## Now obtain the grm information here
+  vals.grm <- testinfo(mod, Theta = thetaVals[,2],individual=TRUE)
   ## Now multiply these?
-  item.info <- matrix(0, nrow=length(thetaVals), ncol = length(a))
+  item.info <- matrix(0, nrow=dim(thetaVals)[1], ncol = length(a))
   for(i in 1:length(a)){
     item.info[,i] <- test.info.2pl * vals.grm[,i]
   }
   test.info <- apply(item.info, 1, sum)
-  test.info.weight <- test.info * dnorm(thetaVals)
+  ## Now multiply by prob of theta value
+  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
+  #test.info.weight <- test.info * dmnorm(muVals, varCovMat, thetaVals)
   ## Now estimate the rel with these info functions
-  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dnorm(thetaVals))))
+  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dmnorm(muVals, varCovMat, thetaVals))))
+  return(out.rel)
+}
+
+hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2 ){
+  ## Declare that mess of a function here
+  foo = function(x, delta = 1e-5, n = 7, col.manip = TRUE, a, b, a_z, b_z){
+    if(col.manip){
+      x = cbind(0,seq(from = x - delta, to = x + delta, length.out = max(2, n)))
+    }else{
+      x = cbind(seq(from = x - delta, to = x + delta, length.out = max(2, n)),0)
+    }
+    y = trace.line.pts(a = a, a_z = a_z, b_z = b_z,b = matrix(b, nrow = 1), x)
+    ## Now go through each of these and return the deriv at each value
+    y_prime = rep(NA, length(y))
+    for(i in 1:length(y)){
+      if(!col.manip){
+        y_prime[i] <- mean(diff(y[[i]][1,])/diff(c(x[,1]))) 
+      }else{
+        y_prime[i] <- mean(diff(y[[i]][1,])/diff(c(x[,2])))  
+      }
+    }
+    ## Turn NaN vals into 0
+    y_prime[is.na(y_prime)] <- 0
+    ## Turn Inf values into 0 here too
+    y_prime[y_prime==Inf] <- 0
+    y_prime_sq <- y_prime^2
+    ## Now take ratio
+    ## First isolate probs
+    probs = unlist(lapply(y, function(x) x[4]))
+    y_prime_sq_div = y_prime_sq / probs
+    ## Now sum these
+    out.info <- sum(y_prime_sq_div)
+    return(out.info)
+  }
+  ## Now estimate the info vals here
+  item.info <- matrix(NA, nrow=nrow(theta.grid), ncol=length(a))
+  for(i in 1:length(a)){
+    all.rows <- NULL
+    for(d in 1:nrow(theta.grid)){
+      t1 = foo(theta.grid[d,1],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      t2 = foo(theta.grid[d,2],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      out.row <- c(t1, t2)
+      all.rows <- rbind(all.rows, out.row)
+    }
+    item.info[,i] <- rowSums(all.rows)
+  }
+  test.info <- rowSums(item.info)
+  test.info[is.na(test.info)] <- 0
+  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
+  ## Now estimate the rel with these info functions
+  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dmnorm(muVals, varCovMat, theta.grid))))
+  out.list = list(out.rel = out.rel,
+                  test.info = test.info,
+                  item.info = item.info)
+  return(out.list)
+}
+
+
+## Now try the hurdle function as just the mean of the 2PL info and the GRM info
+## I think this will makes things much easier to use?
+estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
+  ## Estimate pre mirt model
+  est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
+  if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
+    ## Insert some artificial respones into the data
+    ## FIrst idenitfy which column has the issue
+    unique.resp.vals <- lapply(apply(est.data, 2,table), length)
+    ## Now idenitfy columns
+    inject.vals <- which.min(unique.resp.vals)
+    n.cats <- dim(b)[2]+1
+    for(i in inject.vals){
+      est.data[,i] <- sample(1:n.cats, size = nrow(est.data), replace=TRUE)
+    }
+  }
+  sv <- suppressWarnings(mirt(data=est.data, 1,itemtype= 'graded', pars = 'values'))
+  ## NOw organize true and est vals
+  slopeInt <- matrix(0, length(a), dim(b)[2] + 1)
+  ## Now make a dataframe of all of the discrim and diff values
+  input.vals <- data.frame(cbind(a, b))
+  for(i in 1:length(a)){
+    input.vector <- unlist(as.vector(input.vals[i,]))
+    slopeInt[i, ] <- traditional2mirt(input.vector, cls='graded', ncat=dim(b)[2]+1)
+  }
+  ## Now replace sv with these mirt values
+  sv$value[sv$name == 'a1'] <- slopeInt[,1]
+  ## Now do this for the rest of the difficulty values
+  d.values <- grep(pattern="^d", x = names(table(sv$name)), value = TRUE)
+  index.val <- 2
+  for(i in d.values){
+    sv$value[sv$name == i] <- slopeInt[,index.val]
+    index.val <- index.val + 1
+  }
+  sv$est <- FALSE
+  mod <- suppressWarnings(mirt(est.data, 1, pars=sv))
+  ## Now obtain all of the information values
+  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = thetaVals)
+  item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
+  test.info.2pl <- apply(item.info.2pl, 2, sum)
+  ## NOw make sure this is equivalent to the MIRT item info
+  tmp <- mirt(simVals$mplusMat[,1:8], 1, pars='values', itemtype = "2PL")
+  slopeInt <- matrix(0, length(a), 2)
+  ## Now make a dataframe of all of the discrim and diff values
+  input.vals <- data.frame(cbind(a_z, b_z))
+  for(i in 1:length(a)){
+    input.vector <- unlist(as.vector(input.vals[i,]))
+    slopeInt[i, ] <- traditional2mirt(c(input.vector,0, 1), cls='2PL')[1:2]
+  }
+  tmp$value[tmp$name == 'a1'] <- slopeInt[,1]
+  tmp$value[tmp$name == 'd'] <- slopeInt[,2]
+  tmp$est <- FALSE
+  mod2 <- suppressWarnings(mirt(simVals$mplusMat[,1:8], 1, pars=tmp))
+  vals.2pl <- testinfo(mod2, Theta = thetaVals[,1],individual=TRUE)
+  ## Now obtain the grm information here
+  vals.grm <- testinfo(mod, Theta = thetaVals[,2],individual=TRUE)
+  ## Now add these and take the mean
+  test.info.combined <- apply(vals.2pl + vals.grm, 1, sum)
+  test.info.combined <- test.info.combined / 2
+  ## Now multiply by prob of theta value
+  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
+  #test.info.weight <- test.info * dmnorm(muVals, varCovMat, thetaVals)
+  ## Now estimate the rel with these info functions
+  out.rel <- 1 / (1 + (1 / weighted.mean(test.info.combined, dmnorm(muVals, varCovMat, thetaVals))))
   return(out.rel)
 }
