@@ -412,6 +412,7 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
 estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
   ## Estimate pre mirt model
   est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
+  est.data2 <- simVals$mplusMat[,grep(pattern = "Sus", x = names(simVals$mplusMat))]
   if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
     ## Insert some artificial respones into the data
     ## FIrst idenitfy which column has the issue
@@ -448,7 +449,7 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
   item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
   test.info.2pl <- apply(item.info.2pl, 2, sum)
   ## NOw make sure this is equivalent to the MIRT item info
-  tmp <- mirt(simVals$mplusMat[,1:8], 1, pars='values', itemtype = "2PL")
+  tmp <- mirt(est.data2, 1, pars='values', itemtype = "2PL")
   slopeInt <- matrix(0, length(a), 2)
   ## Now make a dataframe of all of the discrim and diff values
   input.vals <- data.frame(cbind(a_z, b_z))
@@ -459,7 +460,7 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
   tmp$value[tmp$name == 'a1'] <- slopeInt[,1]
   tmp$value[tmp$name == 'd'] <- slopeInt[,2]
   tmp$est <- FALSE
-  mod2 <- suppressWarnings(mirt(simVals$mplusMat[,1:8], 1, pars=tmp))
+  mod2 <- suppressWarnings(mirt(est.data2, 1, pars=tmp))
   vals.2pl <- testinfo(mod2, Theta = thetaVals[,1],individual=TRUE)
   ## Now obtain the grm information here
   vals.grm <- testinfo(mod, Theta = thetaVals[,2],individual=TRUE)
