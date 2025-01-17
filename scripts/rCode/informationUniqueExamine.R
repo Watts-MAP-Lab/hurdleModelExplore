@@ -193,11 +193,13 @@ for(i in 1:4){
   test_dat <- as.data.frame(rep_loop$responses)
   rel.alpha <- psych::alpha(test_dat)
   rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
+  rel.uni <- psych::unidim(test_dat, cor="poly")
   vals_loop$omega_h <- rel.ome$omega_h
   vals_loop$alpha <- rel.alpha$total$raw_alpha
   vals_loop$omega_t <- rel.ome$omega.tot
   vals_loop$G_six <- rel.ome$G6
   vals_loop$alpheFromOme <- rel.ome$alpha
+  vals_loop$unidim <- rel.uni$uni["u"]
   ##  Now grab the true reliability values
   a = vals_loop$true_z_discrim
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
