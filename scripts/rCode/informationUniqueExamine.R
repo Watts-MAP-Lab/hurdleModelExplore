@@ -77,14 +77,16 @@ retMplusHurdleInfoBAYES <- function(in.mat){
   binary.vars <- grep(pattern = "Sus_", x = colnames(in.mat), value = TRUE)
   sev.var <- grep(pattern = "Sev_", x = colnames(in.mat), value = TRUE)
   all.vars <- c(binary.vars, sev.var)
-  p1 <- paste0("Presence BY ",paste0(binary.vars, " (",letters[length(binary.vars)], ")",collapse = " \n"))
+  p1 <- paste0("Presence BY ",paste0(binary.vars, " (",letters[1:length(binary.vars)], ")",collapse = " \n"))
   p1 <- gsub(pattern = "Sus_1 ", replacement = "Sus_1* ", x = p1)
+  p1I <- paste0("[", binary.vars, "$1]", "(",letters[1:length(binary.vars)],")",collapse = " \n")
   p2 <- paste0("Severity BY ",paste0(sev.var, collapse = " \n"))
   p2 <- gsub(pattern = "Sev_1 ", replacement = "Sev_1* ", x = p2)
   p3 <- paste0("Usevariables = ", paste0(all.vars, collapse = "\n"))
   p4 <- paste0("Categorical = ", paste0(all.vars, collapse = "\n"))
   outMplus <- MplusAutomation::mplusObject(TITLE = "testIRTree Model",
                                        MODEL = paste0(p1,"; \n",
+                                                      p1I,"; \n",
                                                       p2, "; \n
                                          Presence@1; Severity@1; \n
                                          [Presence@0]; [Severity@0];"),
@@ -92,7 +94,7 @@ retMplusHurdleInfoBAYES <- function(in.mat){
                                        usevariables = all.vars,
                                        VARIABLE = paste0(p3, "; \n",p4,";"),
                                        ANALYSIS = "  Estimator = BAYES; \n Link = PROBIT LOGIT; ",
-                                       MODELPRIORS = paste0(letters[length(binary.vars)], "~ N(0,.3);",collapse = " \n"))
+                                       MODELPRIORS = paste0(letters[1:length(binary.vars)],"~ N(0,.3);",collapse = " \n"))
   return(outMplus)
 }
 retMplusHurdleInfo <- function(in.mat){
@@ -224,6 +226,9 @@ vals_all <- NULL
 for(i in 1:4){
   ## First get the values
   vals_loop <- get(paste("vals", i, sep=''))
+  vals_loopb <- get(paste("vals", i, "b",sep=''))
+  ## Now merge these
+  true.cols <- grep(pattern = "true", names(vals_loop), ignore.case = TRUE, value = TRUE)
   rep_loop <- get(paste("reps", i, sep=''))
   ## Now estimate alpha & omega
   test_dat <- as.data.frame(rep_loop$responses)
@@ -256,56 +261,27 @@ for(i in 1:4){
   vals_loop$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
   vals_loop$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
   
+  ## Now do the same with the bayesian estimates
+  a = vals_loopb$est_z_discrim
+  b = data.matrix(data.frame(vals_loopb[,grep(pattern = "est_grm_diff", x = names(vals_loopb))]))
+  if(sum(is.na(b))>0){
+    b[is.na(b)] <- 3
+  }
+  b = t(apply(b, 1, sort))
+  a_z = vals_loopb$est_z_discrim
+  b_z = vals_loopb$est_z_diff
+  rhoEst <- unique(vals_loopb$rho)
+  vals_loopb$estHurdleRelB <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
+  vals_loopb$estHurdleRel2B <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
+  ## Now see if we can merge these values, from the bayesian and the ML appraoches
+  vals_loop <- merge(vals_loop, vals_loopb, by=c("item", true.cols), suffixes = c("", "_Bayes"))
+ 
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
   vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
-## NOw do this with bayes est
-vals_allb <- NULL
-for(i in 1:4){
-  ## First get the values
-  vals_loop <- get(paste("vals", i, "b",sep=''))
-  rep_loop <- get(paste("reps", i, sep=''))
-  ## Now estimate alpha & omega
-  test_dat <- as.data.frame(rep_loop$responses)
-  rel.alpha <- psych::alpha(test_dat)
-  rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
-  rel.uni <- psych::unidim(test_dat, cor="poly")
-  vals_loop$omega_h <- rel.ome$omega_h
-  vals_loop$alpha <- rel.alpha$total$raw_alpha
-  vals_loop$omega_t <- rel.ome$omega.tot
-  vals_loop$G_six <- rel.ome$G6
-  vals_loop$alpheFromOme <- rel.ome$alpha
-  vals_loop$unidim <- rel.uni$uni["u"]
-  ##  Now grab the true reliability values
-  a = vals_loop$true_z_discrim
-  b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
-  a_z = vals_loop$true_z_discrim
-  b_z = vals_loop$true_z_diff
-  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
-  vals_loop$trueHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rho)
-  ## Do the same for estimated here -- need to protect against NA values in diff parameters
-  a = vals_loop$est_z_discrim
-  b = data.matrix(data.frame(vals_loop[,grep(pattern = "est_grm_diff", x = names(vals_loop))]))
-  if(sum(is.na(b))>0){
-    b[is.na(b)] <- 3
-  }
-  b = t(apply(b, 1, sort))
-  a_z = vals_loop$est_z_discrim
-  b_z = vals_loop$est_z_diff
-  rhoEst <- unique(vals_loop$rho)
-  vals_loop$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
-  vals_loop$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
-  
-  ## Now do a basic grm model
-  mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
-  vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
-  vals_allb <- dplyr::bind_rows(vals_allb, vals_loop)
-}
-
-
 ## Now save these
-out.list <- list(allParams = vals_all, allParamsB = vals_allb)
+out.list <- list(allParams = vals_all)
 saveRDS(out.list, file=out.file)
