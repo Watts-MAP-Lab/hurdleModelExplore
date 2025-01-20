@@ -220,7 +220,6 @@ vals2b <- loadDatFromMplus(strat.one4b[[2]], reps2)
 vals3b <- loadDatFromMplus(strat.one4b[[3]], reps3)
 vals4b <- loadDatFromMplus(strat.one4b[[4]], reps4)
 
-
 ## Now go through each of these and add the estimated test reliability from alpha and omega
 vals_all <- NULL
 for(i in 1:4){
