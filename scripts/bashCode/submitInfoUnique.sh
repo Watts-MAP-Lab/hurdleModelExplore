@@ -5,12 +5,12 @@
 #SBATCH --ntasks=1
 #SBATCH --output=./outputText/r_output_%J_%a.txt
 #SBATCH --error=./errorText/r_error_%J_%a.txt
-#SBATCH --time=45:00
+#SBATCH --time=2:00:00
 #SBATCH --job-name=hurdle_sim_submit
 #SBATCH --mail-user=adon.rosen@vanderbilt.edu
 #SBATCH --mail-type=ALL
 #SBATCH --chdir=/home/rosena/hurdleModelExplore
-#SBATCH --array=1-9600
+#SBATCH --array=1-4800
 
 module purge
 # module load GCC/11.3.0
