@@ -13,9 +13,10 @@
 #SBATCH --array=1-9600
 
 module purge
-module load GCC/11.3.0
-module load OpenMPI/4.1.4
-module load R/4.2.1
+# module load GCC/11.3.0
+# module load OpenMPI/4.1.4
+# module load R/4.2.1
+module load r/4.4.0
 
 echo ${SLURM_ARRAY_TASK_ID}
 echo "Submitting job"
