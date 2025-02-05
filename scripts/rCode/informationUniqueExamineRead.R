@@ -13,26 +13,26 @@ library(visreg)
 
 in.dat <- list.files(path="~/Documents/hurdleModelExplore/data/hurdleCollapse", pattern = ".RDS", full.names = TRUE)
 #   
-# ## Collapse all of the estimated models
-# all.collapse <- NULL
-# # all.expand <- NULL
-# for(i in in.dat){
-#   tmp <- readRDS(i)
-#   ## Identify the seed val
-#   seedVal1 <- basename(i)
-#   seedVal <- strsplit(strsplit(basename(i), "_")[[1]][2], ".RDS")[[1]][1]
-#   ## Now print this
-#   #print(c(seedVal1, seedVal))
-#   ## Grab the coefficeints
-#   tmp.dat <- tmp$allParams
-#   ## Now identify the lower 2PL diff value
-#   tmp.dat$plFloor <- rep(1:4, each = dim(tmp.dat)[1] / 4)
-#   tmp.dat$seedVal <- seedVal
-#   all.collapse <- dplyr::bind_rows(all.collapse, tmp.dat)
-# }
+## Collapse all of the estimated models
+all.collapse <- NULL
+# all.expand <- NULL
+for(i in in.dat){
+  tmp <- readRDS(i)
+  ## Identify the seed val
+  seedVal1 <- basename(i)
+  seedVal <- strsplit(strsplit(basename(i), "_")[[1]][2], ".RDS")[[1]][1]
+  ## Now print this
+  #print(c(seedVal1, seedVal))
+  ## Grab the coefficeints
+  tmp.dat <- tmp$allParams
+  ## Now identify the lower 2PL diff value
+  tmp.dat$plFloor <- rep(1:4, each = dim(tmp.dat)[1] / 4)
+  tmp.dat$seedVal <- seedVal
+  all.collapse <- dplyr::bind_rows(all.collapse, tmp.dat)
+}
 # saveRDS(all.collapse, file = "./data/allCollapse.RDS")
 # saveRDS(all.expand, file = "./data/allExpand.RDS")
-all.collapse <- readRDS("./data/allCollapse.RDS")
+#all.collapse <- readRDS("./data/allCollapse.RDS")
 #all.expand <- readRDS("./data/allExpand.RDS")
 
 ## Grab the rho error
@@ -52,7 +52,7 @@ sim.iter <- 1:50
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
                             sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.iter)
-colnames(all.sim.vals) <- c("nItem", "nCat", "discrim", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","iter")
+colnames(all.sim.vals) <- c("nItem", "nCat", "grmDiscrim", "diffSpread", "n", "facCor", "difGrmF","difGrmC","discrim","iter")
 all.sim.vals$seed <- 1:nrow(all.sim.vals)
 all.dat.collapse <- merge(all.collapse, all.sim.vals, by.x = "seedVal", by.y="seed")
 
@@ -93,20 +93,20 @@ all.dat.collapse <- all.dat.collapse[!duplicated(all.dat.collapse$uniqueIdent),]
 # all.dat.collapse$unidim <- all.dat.collapse$unidim - all.dat.collapse$trueHurdleRel2
 # all.dat.collapse$grmRel <- all.dat.collapse$grmRel - all.dat.collapse$trueHurdleRel2
 ## Now do the same with the root mean sqaured error^2)
-all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpheFromOme)^2)
-all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpha - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpheFromOme - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$G_six <-            sqrt((all.dat.collapse$G_six - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$omega_t <-          sqrt((all.dat.collapse$omega_t - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$omega_h <-          sqrt((all.dat.collapse$omega_h - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$estHurdleRel <-     sqrt((all.dat.collapse$estHurdleRel - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$estHurdleRel2 <-    sqrt((all.dat.collapse$estHurdleRel2 - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$estHurdleRelB <-    sqrt((all.dat.collapse$estHurdleRelB - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$estHurdleRel2B <-   sqrt((all.dat.collapse$estHurdleRel2B - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$unidim <-           sqrt((all.dat.collapse$unidim - all.dat.collapse$trueHurdleRel)^2)
-all.dat.collapse$grmRel <-           sqrt((all.dat.collapse$grmRel - all.dat.collapse$trueHurdleRel)^2)
-
-
+# all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpheFromOme)^2)
+# all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpha - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$alpha <-            sqrt((all.dat.collapse$alpheFromOme - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$G_six <-            sqrt((all.dat.collapse$G_six - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$omega_t <-          sqrt((all.dat.collapse$omega_t - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$omega_h <-          sqrt((all.dat.collapse$omega_h - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$estHurdleRel <-     sqrt((all.dat.collapse$estHurdleRel_MIRT - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$estHurdleRel2 <-    sqrt((all.dat.collapse$estHurdleRel2_MIRT - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$estHurdleRel_MIRT <-    sqrt((all.dat.collapse$estHurdleRel_MIRT - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$estHurdleRel2_MIRT <-   sqrt((all.dat.collapse$estHurdleRel2_MIRT - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$unidim <-           sqrt((all.dat.collapse$unidim - all.dat.collapse$trueHurdleRel)^2)
+# all.dat.collapse$grmRel <-           sqrt((all.dat.collapse$grmRel - all.dat.collapse$trueHurdleRel)^2)
+all.dat.collapse$alpha <-            all.dat.collapse$alpheFromOme
+all.dat.collapse$estHurdleRel <-     all.dat.collapse$estHurdleRel_MIRT
 
 
 all.me.vals <- c("nItem","facCor","difGrmF","nCat", "discrim","grmDiscrim")
@@ -181,18 +181,18 @@ p1d <- ggplot(d1, aes(x=facLevel, y=grmRel)) +
   geom_errorbar(aes(ymin = grmRel - se, ymax = grmRel + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
 ## Now do our hurdle info examine
-d1 <- summarySE(data = all.dat.collapse, measurevar = "estHurdleRel2B", groupvars = c("plFloor"))
+d1 <- summarySE(data = all.dat.collapse, measurevar = "estHurdleRel2", groupvars = c("plFloor"))
 d1$colVal <- "plFloor"
 colnames(d1)[1] <- "facLevel"
 for(i in all.me.vals){
-  d2 <- summarySE(data = all.dat.collapse, measurevar = "estHurdleRel2B", groupvars = c(i))
+  d2 <- summarySE(data = all.dat.collapse, measurevar = "estHurdleRel2", groupvars = c(i))
   d2$colVal <- i
   colnames(d2)[1] <- "facLevel"
   d1 <- dplyr::bind_rows(d1, d2)
 }
-p1e <- ggplot(d1, aes(x=facLevel, y=estHurdleRel2B)) +
+p1e <- ggplot(d1, aes(x=facLevel, y=estHurdleRel2)) +
   geom_bar(position="dodge", stat="identity") +
-  geom_errorbar(aes(ymin = estHurdleRel2B - se, ymax = estHurdleRel2B + se),position="dodge") +
+  geom_errorbar(aes(ymin = estHurdleRel2 - se, ymax = estHurdleRel2 + se),position="dodge") +
   facet_wrap(colVal ~ ., scales = "free")
 
 ## ANd here is the true info from a hurdle model
@@ -242,7 +242,7 @@ p1g <- ggplot(d1, aes(x=facLevel, y=unidim)) +
   facet_wrap(colVal ~ ., scales = "free")
 
 
-all.one <- ggpubr::ggarrange(p1, p1c, p1b, p1a, p1d,p1e,p1f,p1g,ncol=4, nrow = 2, labels = c("A", "B", "C", "D", "E","F"))
+all.one <- ggpubr::ggarrange(p1, p1c, p1b, p1a, p1d,p1f,ncol=3, nrow = 2, labels = c("A", "B", "C", "D", "E","F"))
 
 ggsave(filename = "./mainEffectExplore2.png", plot = all.one, width = 16, height = 8, dpi = 300, units = "in")
 ggsave(filename = "~/Downloads/mainEffectExplore2.png", plot = all.one, width = 16, height = 8, dpi = 300, units = "in")
@@ -277,8 +277,8 @@ ggpubr::ggarrange(all.one, p1G)
 # 
 
 ## Now look into 2pl diff error
-all.collapse$diffError2pl <- all.collapse$est_z_diff - all.collapse$true_z_diff
-all.collapse$diffError2plB <- all.collapse$est_z_diff_Bayes - all.collapse$true_z_diff
+all.collapse$diffError2pl <- all.collapse$est_z_diff_MIRT - all.collapse$true_z_diff
+all.collapse$diffError2plB <- all.collapse$est_z_diff - all.collapse$true_z_diff
 
 ## Now plot this error by 0-inflation level
 d1 <- summarySE(data = all.collapse, measurevar = "diffError2pl", groupvars = c("plFloor"))
@@ -286,6 +286,10 @@ p1g <- ggplot(d1, aes(x=plFloor, y=diffError2pl)) +
   #geom_bar(position="dodge", stat="identity") +
   geom_violin(data = all.collapse, mapping = aes(x=plFloor, y=diffError2pl, group = cut_width(plFloor, 1)), scale = "width") +
   theme_bw()
+
+## Now see what is influencing the hurdle reliability estimate values
+hurd.mod <- lm(estHurdleRel_MIRT ~ ())
+
 
 
 
@@ -318,21 +322,71 @@ p4 <- ggplot(plot4, aes(x=discrim, y=G_six, group = grmDiscrim, fill=grmDiscrim)
 ggpubr::ggarrange(p1, p2, p3, p4, ncol=2, nrow = 2, labels = c("A", "B", "C", "D"))
 
 ## Now model each of these outcomes
-mod.1 <- lm(alpha ~ (nItem + diffSpread + facCor + difGrmF + difGrmC + difGrmF + nCat + sampSize + discrim + grmDiscrim)^3, data = all.dat.collapse)
-mod.2 <- lm(omega_t ~ (nItem + diffSpread + facCor + difGrmF + difGrmC + difGrmF + nCat + sampSize + discrim + grmDiscrim)^3, data = all.dat.collapse)
-mod.3 <- lm(omega_h ~ (nItem + diffSpread + facCor + difGrmF + difGrmC + difGrmF + nCat + sampSize + discrim + grmDiscrim)^3, data = all.dat.collapse)
-mod.4 <- lm(G_six ~ (nItem + diffSpread + facCor + difGrmF + difGrmC + difGrmF + nCat + sampSize + discrim + grmDiscrim)^3, data = all.dat.collapse)
+mod.1 <- lm(alpha ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
+mod.2 <- lm(omega_t ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
+mod.3 <- lm(omega_h ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
+mod.4 <- lm(G_six ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
+mod.5 <- lm(grmRel ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
+mod.6 <- lm(estHurdleRel_MIRT ~ (nItem + facCor + difGrmF + nCat + discrim + grmDiscrim + plFloor)^4, data = all.dat.collapse)
 
-## Now run through the anovas here
+
+## Now look at eta squared for all main effects
+anova.1 <- car::Anova(mod.1)
+ef.aov1 <- effectsize::eta_squared(anova.1)[,1:2]
+anova.2 <- car::Anova(mod.2)
+ef.aov2 <- effectsize::eta_squared(anova.2)[,1:2]
+anova.3 <- car::Anova(mod.3)
+ef.aov3 <- effectsize::eta_squared(anova.3)[,1:2]
+anova.4 <- car::Anova(mod.4)
+ef.aov4 <- effectsize::eta_squared(anova.4)[,1:2]
+anova.5 <- car::Anova(mod.5)
+ef.aov5 <- effectsize::eta_squared(anova.5)[,1:2]
+anova.6 <- car::Anova(mod.6)
+ef.aov6 <- effectsize::eta_squared(anova.6)[,1:2]
+
+## Now merge all of these
+ef.all <- merge(ef.aov1, ef.aov2, by=c("Parameter"), suffixes = c("_Alpha", "_OT"))
+ef.all <- merge(ef.all, ef.aov3, by=c("Parameter"))
+colnames(ef.all)[4] <- "Eta2_partial_OH"
+ef.all <- merge(ef.all, ef.aov4, by=c("Parameter"))
+colnames(ef.all)[5] <- "Eta2_partial_G6"
+ef.all <- merge(ef.all, ef.aov5, by=c("Parameter"))
+colnames(ef.all)[6] <- "Eta2_partial_GRM"
+ef.all <- merge(ef.all, ef.aov6, by=c("Parameter"))
+colnames(ef.all)[7] <- "Eta2_partial_HUR"
+
+
+## Now plot all two-way interactions here?
 anova.one <- car::Anova(mod.1)
+ef.aov1 <- effectsize::eta_squared(anova.one)
+ef.aov1 <- ef.aov1[order(ef.aov1$Eta2_partial),]
+ef.aov1
+tmp.1 <- visreg(mod.1, "nItem", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+visreg(mod.1, "facCor", "plFloor")
+visreg(mod.1, "facCor", "plFloor")
+visreg(mod.1, "discrim", "plFloor")
+visreg(mod.1, "grmDiscrim", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+visreg(mod.1, "discrim", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+
+
 anova.two <- car::Anova(mod.2)
-anova.thr <- car::Anova(mod.3)
-anova.fou <- car::Anova(mod.4)
+ef.aov2 <- effectsize::eta_squared(anova.two)
+ef.aov2 <- ef.aov2[order(ef.aov2$Eta2_partial),]
+ef.aov2
+visreg(mod.2, "nItem", "plFloor")
+visreg(mod.2, "facCor", "plFloor")
+visreg(mod.2, "facCor", "plFloor")
+visreg(mod.2, "discrim", "plFloor")
+visreg(mod.2, "grmDiscrim", "plFloor")
 
-## Now effect sizes
-eff.one <- effectsize::cohens_f(anova.one)
-eff.two <- effectsize::cohens_f(anova.two)
-eff.thr <- effectsize::cohens_f(anova.thr)
-eff.fou <- effectsize::cohens_f(anova.fou)
 
-## Order
+anova.six <- car::Anova(mod.6)
+ef.aov6 <- effectsize::eta_squared(anova.six)
+ef.aov6 <- ef.aov6[order(ef.aov6$Eta2_partial),]
+ef.aov6
+visreg(mod.6, "grmDiscrim", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+visreg(mod.6, "difGrmF", "plFloor")
+visreg(mod.6, "nItem", "plFloor")
+visreg(mod.6, "difGrmF", "nCat")
+visreg(mod.6, "difGrmF", "discrim")
+visreg(mod.6, "nCat", "discrim")
