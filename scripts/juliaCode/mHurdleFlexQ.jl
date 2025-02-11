@@ -208,6 +208,6 @@ p[nitems[1]*nParmsPerItemGRM[1] + nitems[1]*nParmsPerItem2PL[1] + 1] = rho_exp
 #outputFile = ("/tmp/")
 println(ll_grm_ip(p, data_out, theta, data_out2))
 
-@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,LBFGS(),Optim.Options(g_tol = 1e-2, iterations=10, show_trace=true, show_every=5))
+@time h = optimize(z -> ll_grm_ip(z, data_out, theta, data_out2),p,BFGS(),Optim.Options(g_tol = 1e-3, iterations=10, show_trace=true, show_every=5))
 
 println(Optim.minimizer(h))
