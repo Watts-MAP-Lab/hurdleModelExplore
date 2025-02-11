@@ -367,14 +367,17 @@ visreg(mod.1, "facCor", "plFloor")
 visreg(mod.1, "discrim", "plFloor")
 visreg(mod.1, "grmDiscrim", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
 visreg(mod.1, "discrim", "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+visreg(mod.1, "plFloor", gg=TRUE) + coord_cartesian(ylim=c(0,1))
+
 
 
 anova.two <- car::Anova(mod.2)
 ef.aov2 <- effectsize::eta_squared(anova.two)
 ef.aov2 <- ef.aov2[order(ef.aov2$Eta2_partial),]
 ef.aov2
-visreg(mod.2, "nItem", "plFloor")
-visreg(mod.2, "facCor", "plFloor")
+
+visreg(mod.2, "grmDiscrim", "plFloor")
+visreg(mod.2, "discrim", "plFloor")
 visreg(mod.2, "facCor", "plFloor")
 visreg(mod.2, "discrim", "plFloor")
 visreg(mod.2, "grmDiscrim", "plFloor")
