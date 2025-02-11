@@ -12,7 +12,7 @@ sim2PLMod <- function(a, b, N, thetaP){
     }
     ## Now write the output
     output.df = data.frame(responses, theta)
-    ## NOw return this
+    ## Now return this
     return(output.df) 
 }
 
@@ -44,23 +44,23 @@ sim2PLMultiMod <- function(muVals = c(0,0), varCovMat = diag(2), a = matrix(rnor
 genDiffGRM <- function(num_items= 20, num_categories=5, min=0, max=2){
     diffs <- t(apply(matrix(runif(num_items*(num_categories-1), min = min, max = max), num_items), 1, cumsum))
     diffs <- -(diffs - rowMeans(diffs))
-    d <- diffs + rnorm(num_items)
+    d <- diffs + rnorm(num_items, sd = .3)
     d <- t(apply(d, 1, sort))
     return(d)
 }
 
-genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var = .5){
-  ## Figure out how many difficulty params are needed
-  num_dif = num_categories-1
-  ## Now first create a vector of equidistant difficulty parameters for every item
-  equi.vec <- seq(min, max, length.out = num_dif)
-  ## Assign difficulty parameters here
-  out.mat <- matrix(equi.vec, nrow=num_items, ncol=num_dif, byrow = TRUE)
-  ## Add some error
-  out.mat <- out.mat + rnorm(num_items * num_dif, sd = rnorm_var)
-  out.mat <- t(apply(out.mat, 1, sort))
-  return(out.mat)
-}
+# genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var = .5){
+#   ## Figure out how many difficulty params are needed
+#   num_dif = num_categories-1
+#   ## Now first create a vector of equidistant difficulty parameters for every item
+#   equi.vec <- seq(min, max, length.out = num_dif)
+#   ## Assign difficulty parameters here
+#   out.mat <- matrix(equi.vec, nrow=num_items, ncol=num_dif, byrow = TRUE)
+#   ## Add some error
+#   out.mat <- out.mat + rnorm(num_items * num_dif, sd = rnorm_var)
+#   out.mat <- t(apply(out.mat, 1, sort))
+#   return(out.mat)
+# }
 
 ## Create a function here which will return all of the probs from a GRM model
 itemtraceGRM <- function(a, b, theta){
@@ -410,6 +410,73 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
 ## Now try the hurdle function as just the mean of the 2PL info and the GRM info
 ## I think this will makes things much easier to use?
 estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
+  ## Estimate pre mirt model
+  est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
+  est.data2 <- simVals$mplusMat[,grep(pattern = "Sus", x = names(simVals$mplusMat))]
+  if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
+    ## Insert some artificial respones into the data
+    ## FIrst idenitfy which column has the issue
+    unique.resp.vals <- lapply(apply(est.data, 2,table), length)
+    ## Now idenitfy columns
+    inject.vals <- which.min(unique.resp.vals)
+    n.cats <- dim(b)[2]+1
+    for(i in inject.vals){
+      est.data[,i] <- sample(1:n.cats, size = nrow(est.data), replace=TRUE)
+    }
+  }
+  sv <- suppressWarnings(mirt(data=est.data, 1,itemtype= 'graded', pars = 'values'))
+  ## NOw organize true and est vals
+  slopeInt <- matrix(0, length(a), dim(b)[2] + 1)
+  ## Now make a dataframe of all of the discrim and diff values
+  input.vals <- data.frame(cbind(a, b))
+  for(i in 1:length(a)){
+    input.vector <- unlist(as.vector(input.vals[i,]))
+    slopeInt[i, ] <- traditional2mirt(input.vector, cls='graded', ncat=dim(b)[2]+1)
+  }
+  ## Now replace sv with these mirt values
+  sv$value[sv$name == 'a1'] <- slopeInt[,1]
+  ## Now do this for the rest of the difficulty values
+  d.values <- grep(pattern="^d", x = names(table(sv$name)), value = TRUE)
+  index.val <- 2
+  for(i in d.values){
+    sv$value[sv$name == i] <- slopeInt[,index.val]
+    index.val <- index.val + 1
+  }
+  sv$est <- FALSE
+  mod <- suppressWarnings(mirt(est.data, 1, pars=sv))
+  ## Now obtain all of the information values
+  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = thetaVals)
+  item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
+  test.info.2pl <- apply(item.info.2pl, 2, sum)
+  ## NOw make sure this is equivalent to the MIRT item info
+  tmp <- mirt(est.data2, 1, pars='values', itemtype = "2PL")
+  slopeInt <- matrix(0, length(a), 2)
+  ## Now make a dataframe of all of the discrim and diff values
+  input.vals <- data.frame(cbind(a_z, b_z))
+  for(i in 1:length(a)){
+    input.vector <- unlist(as.vector(input.vals[i,]))
+    slopeInt[i, ] <- traditional2mirt(c(input.vector,0, 1), cls='2PL')[1:2]
+  }
+  tmp$value[tmp$name == 'a1'] <- slopeInt[,1]
+  tmp$value[tmp$name == 'd'] <- slopeInt[,2]
+  tmp$est <- FALSE
+  mod2 <- suppressWarnings(mirt(est.data2, 1, pars=tmp))
+  vals.2pl <- testinfo(mod2, Theta = thetaVals[,1],individual=TRUE)
+  ## Now obtain the grm information here
+  vals.grm <- testinfo(mod, Theta = thetaVals[,2],individual=TRUE)
+  ## Now add these and take the mean
+  test.info.combined <- apply(vals.2pl + vals.grm, 1, sum)
+  test.info.combined <- test.info.combined / 2
+  ## Now multiply by prob of theta value
+  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
+  #test.info.weight <- test.info * dmnorm(muVals, varCovMat, thetaVals)
+  ## Now estimate the rel with these info functions
+  out.rel <- 1 / (1 + (1 / weighted.mean(test.info.combined, dmnorm(muVals, varCovMat, thetaVals))))
+  return(out.rel)
+}
+
+
+estHurdleRelGen <- function(a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
   ## Estimate pre mirt model
   est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
   est.data2 <- simVals$mplusMat[,grep(pattern = "Sus", x = names(simVals$mplusMat))]
