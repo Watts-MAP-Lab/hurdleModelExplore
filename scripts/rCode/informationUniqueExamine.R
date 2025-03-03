@@ -216,6 +216,7 @@ for(i in 1:4){
   vals_loop$omega_h <- rel.ome$omega_h
   vals_loop$alpha <- rel.alpha$total$raw_alpha
   vals_loop$omega_t <- rel.ome$omega.tot
+  vals_loop$omega_h <- rel.ome$omega_h
   vals_loop$G_six <- rel.ome$G6
   cor.mat <- psych::polychoric(rep_loop$responses)
   split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
@@ -272,6 +273,10 @@ for(i in 1:4){
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
   vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  ## Now do the same for only the >0 values
+  iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
+  mod <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
+  vals_loop$grmRelExludeZero <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
@@ -280,5 +285,5 @@ out.list <- list(allParams = vals_all)
 saveRDS(out.list, file=out.file)
 
 ## Now clean up mplus dir
-output.dir <- paste("./data/hurdleCollapse/seedVal_", seedVal, sep='')
+output.dir <- paste("./data/hurdleCollapse/seedVal_", seedVal, "_min", sep='')
 system(paste("rm -rf", output.dir))
