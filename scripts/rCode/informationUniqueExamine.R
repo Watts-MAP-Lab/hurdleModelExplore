@@ -24,7 +24,7 @@ sim.param.faccor <- c(.3,.8)
 sim.param.difgrmF <- c(-2,-.5)
 sim.param.difgrmC <- c(2)
 sim.param.discri2 <- c(1.2, 2.4)
-sim.iter <- 1:50
+sim.iter <- 1:100
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
                             sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.iter)

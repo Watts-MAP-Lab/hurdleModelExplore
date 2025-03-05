@@ -10,7 +10,7 @@
 #SBATCH --mail-user=adon.rosen@vanderbilt.edu
 #SBATCH --mail-type=ALL
 #SBATCH --chdir=/home/rosena/hurdleModelExplore
-#SBATCH --array=1-4800
+#SBATCH --array=4801-4800
 
 module purge
 # module load GCC/11.3.0
