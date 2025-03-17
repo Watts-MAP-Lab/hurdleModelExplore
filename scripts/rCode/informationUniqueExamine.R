@@ -16,10 +16,10 @@ library("mirt")
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(8,16)
-sim.param.ncates <- c(3,5,7)
+sim.param.ncates <- c(3,5,8)
 sim.param.discri <- c(1.2,2.4)
 sim.param.2pl.spread <- c(2)
-sim.param.sample <- c(10000)
+sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
 sim.param.difgrmF <- c(-2,-.5)
 sim.param.difgrmC <- c(2)
@@ -63,6 +63,42 @@ reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = 
 reps2 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z2, muVals = muVals, varCovMat = varCovMat, theta = theta)
 reps3 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z3, muVals = muVals, varCovMat = varCovMat, theta = theta)
 reps4 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z4, muVals = muVals, varCovMat = varCovMat, theta = theta)
+
+## Run a quick check to make sure every response has equal 
+runCheck <- TRUE
+repCount <- 0
+while(runCheck){
+  ## GO through all reps and make sure every response has SOME endorsements
+  allCheck <- rep(NA, 4)
+  for(i in 1:4){
+    rep_loop <- get(paste("reps", i, sep=''))
+    all.length <- lapply(apply(rep_loop$responses, 2,table), length)
+    all.length <- length(table(unlist(all.length)))
+    if(all.length==1){
+      allCheck[i] <- 0
+    }else{
+      allCheck[i] <- 1 
+    }
+  }
+  if(sum(allCheck) > 0){
+    index.val <- which(allCheck == 1)
+    b_z1 = runif(all.sim.vals$nItem[seedVal], min = -2, max=-2+all.sim.vals$diffSpread[seedVal])
+    b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
+    b_z3 = runif(all.sim.vals$nItem[seedVal], min = 0, max=0+all.sim.vals$diffSpread[seedVal])
+    b_z4 = runif(all.sim.vals$nItem[seedVal], min = 1, max=1+all.sim.vals$diffSpread[seedVal])
+    for(l in 1:4){
+      ## First reassign the b_z vals
+      b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmC[seedVal])
+      b_z_loop <- get(paste("b_z", i, sep=''))
+      rep_loop <- simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z_loop, muVals = muVals, varCovMat = varCovMat, theta = theta)
+      assign(paste("reps", l, sep=''), rep_loop)
+      repCount <- repCount + 1
+      print(paste("repCount: ",repCount, "lengthIndex: ", length(index.val)))
+    }
+  }else{
+    runCheck <- FALSE
+  }
+}
 
 s1 = reps1$mplusMat
 s2 = reps2$mplusMat
@@ -258,6 +294,7 @@ for(i in 1:4){
   sev.vals <- grep(pattern = "Sev", x = names(mirt.coef))
   a <- unlist(lapply(mirt.coef[sev.vals], function(x) x[2]))
   b <- lapply(mirt.coef[sev.vals], function(x) x[-c(1:2)])
+  ## FIrst check the dim of the 
   b <- t(bind_rows(b))
   #b <- t(apply(b, 1, function(x) sort(x, decreasing = FALSE)))
   rhoEst <- unique(mirt.coef$GroupPars["par","COV_21"])
