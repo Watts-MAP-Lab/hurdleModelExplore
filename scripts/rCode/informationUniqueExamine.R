@@ -12,17 +12,18 @@ suppressPackageStartupMessages(library("tidyverse"))
 library("numDeriv")
 suppressPackageStartupMessages(library(MplusAutomation))
 library("mirt")
+library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(8,16)
-sim.param.ncates <- c(3,5,8)
+sim.param.ncates <- c(3,5,7)
 sim.param.discri <- c(1.2,2.4)
-sim.param.2pl.spread <- c(2)
+sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
-sim.param.difgrmF <- c(-2,-.5)
-sim.param.difgrmC <- c(2)
+sim.param.difgrmF <- c(-3,0)
+sim.param.difgrmC <- c(3)
 sim.param.discri2 <- c(1.2, 2.4)
 sim.iter <- 1:100
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
@@ -46,8 +47,10 @@ if(file.exists(out.file)){
 ## First create the data -- this will start with the maximum full dataset, 9 total respone categories, full range of difficulty parameters
 ## This will also showcase where I need to streamline code with custom functions
 a = rep(all.sim.vals$discrim[seedVal], all.sim.vals$nItem[seedVal])
+a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim[seedVal] - .3, all.sim.vals$discrim[seedVal] + .3)
 b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmC[seedVal])
 a_z = rep(all.sim.vals$grmDiscrim[seedVal], all.sim.vals$nItem[seedVal])
+a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal] - .3, all.sim.vals$grmDiscrim[seedVal] + .3)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = -2, max=-2+all.sim.vals$diffSpread[seedVal])
 b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
@@ -246,7 +249,8 @@ for(i in 1:4){
   rep_loop <- get(paste("reps", i, sep=''))
   ## Now estimate alpha & omega
   test_dat <- as.data.frame(rep_loop$responses)
-  rel.alpha <- psych::alpha(test_dat)
+  #rel.alpha <- psych::alpha(test_dat)
+  rel.alpha <- psych::alpha(polychoric(test_dat)$tau)
   rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
   rel.uni <- psych::unidim(test_dat, cor="poly")
   vals_loop$omega_h <- rel.ome$omega_h

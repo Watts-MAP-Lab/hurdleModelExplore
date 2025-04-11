@@ -302,10 +302,10 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
   ## Estimate pre mirt model
   est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
   if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
-    ## Insert some artificial respones into the data
-    ## FIrst idenitfy which column has the issue
+    ## Insert some artificial response into the data
+    ## First identify which column has the issue
     unique.resp.vals <- lapply(apply(est.data, 2,table), length)
-    ## Now idenitfy columns
+    ## Now identify columns
     inject.vals <- which.min(unique.resp.vals)
     n.cats <- dim(b)[2]+1
     for(i in inject.vals){
@@ -356,14 +356,14 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
   ## Declare that mess of a function here
   foo = function(x, delta = 1e-5, n = 7, col.manip = TRUE, a, b, a_z, b_z){
     if(col.manip){
-      x = cbind(0,seq(from = x - delta, to = x + delta, length.out = max(2, n)))
+      x = cbind(x[,1],seq(from = x[,2] - delta, to = x[,2] + delta, length.out = max(2, n)))
     }else{
-      x = cbind(seq(from = x - delta, to = x + delta, length.out = max(2, n)),0)
+      x = cbind(seq(from = x[,1] - delta, to = x[,1] + delta, length.out = max(2, n)),x[,2])
     }
     y = trace.line.pts(a = a, a_z = a_z, b_z = b_z,b = matrix(b, nrow = 1), x)
     ## Now go through each of these and return the deriv at each value
-    y_prime = rep(NA, length(y))
-    for(i in 1:length(y)){
+    y_prime = rep(NA, length(y)-1)
+    for(i in 2:length(y)){
       if(!col.manip){
         y_prime[i] <- mean(diff(y[[i]][1,])/diff(c(x[,1]))) 
       }else{
@@ -377,8 +377,10 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
     y_prime_sq <- y_prime^2
     ## Now take ratio
     ## First isolate probs
-    probs = unlist(lapply(y, function(x) x[4]))
+    middle.index <- ceiling(n/2)
+    probs = unlist(lapply(y, function(x) x[middle.index]))
     y_prime_sq_div = y_prime_sq / probs
+
     ## Now sum these
     out.info <- sum(y_prime_sq_div)
     return(out.info)
@@ -388,8 +390,8 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
   for(i in 1:length(a)){
     all.rows <- NULL
     for(d in 1:nrow(theta.grid)){
-      t1 = foo(theta.grid[d,1],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
-      t2 = foo(theta.grid[d,2],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      t1 = foo(theta.grid[d,],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      t2 = foo(theta.grid[d,],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
       out.row <- c(t1, t2)
       all.rows <- rbind(all.rows, out.row)
     }
@@ -405,7 +407,6 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
                   item.info = item.info)
   return(out.list)
 }
-
 
 ## Now try the hurdle function as just the mean of the 2PL info and the GRM info
 ## I think this will makes things much easier to use?
