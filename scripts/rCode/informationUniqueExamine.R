@@ -19,7 +19,7 @@ library("psych")
 sim.param.nitems <- c(8,16)
 sim.param.ncates <- c(3,6)
 sim.param.discri <- c(1.2,2.4)
-sim.param.2pl.spread <- c(3)
+sim.param.2pl.spread <- c(2)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
 sim.param.difgrmF <- c(-3,-1)
@@ -68,7 +68,7 @@ reps3 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z3, muVals = 
 reps4 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z4, muVals = muVals, varCovMat = varCovMat, theta = theta)
 
 ## Run a quick check to make sure every response has equal 
-runCheck <- TRUE
+runCheck <- FALSE
 repCount <- 0
 while(runCheck){
   ## GO through all reps and make sure every response has SOME endorsements
@@ -298,7 +298,15 @@ for(i in 1:4){
   sev.vals <- grep(pattern = "Sev", x = names(mirt.coef))
   a <- unlist(lapply(mirt.coef[sev.vals], function(x) x[2]))
   b <- lapply(mirt.coef[sev.vals], function(x) x[-c(1:2)])
-  ## FIrst check the dim of the 
+  ## First check the length of all b estimates
+  ## if any are shorter -- add a large value to these b estimates
+  b_check <- table(unlist(lapply(b, length)))
+  if(length(b_check)>1){
+    ## add a large difficulty value to the b missing a response option
+    b_check <- which.min(lapply(b, length))
+    b[[b_check]] <- c(b[[b_check]], 4)
+  }
+  
   b <- t(bind_rows(b))
   #b <- t(apply(b, 1, function(x) sort(x, decreasing = FALSE)))
   rhoEst <- unique(mirt.coef$GroupPars["par","COV_21"])
