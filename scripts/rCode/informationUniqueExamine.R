@@ -16,14 +16,14 @@ library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(8,16)
-sim.param.ncates <- c(3,6)
+sim.param.nitems <- c(6,12)
+sim.param.ncates <- c(4,7)
 sim.param.discri <- c(1.2,2.4)
 sim.param.2pl.spread <- c(2)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
-sim.param.difgrmF <- c(-3,-1)
-sim.param.difgrmC <- c(3)
+sim.param.difgrmF <- c(-2,-.5)
+sim.param.difgrmC <- c(2)
 sim.param.discri2 <- c(1.2, 2.4)
 sim.iter <- 1:100
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
@@ -304,7 +304,7 @@ for(i in 1:4){
   if(length(b_check)>1){
     ## add a large difficulty value to the b missing a response option
     b_check <- which.min(lapply(b, length))
-    b[[b_check]] <- c(b[[b_check]], 4)
+    b[[b_check]] <- c(b[[b_check]], 8)
   }
   
   b <- t(bind_rows(b))
