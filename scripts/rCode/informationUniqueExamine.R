@@ -17,12 +17,12 @@ library("psych")
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(8,16)
-sim.param.ncates <- c(3,5,7)
+sim.param.ncates <- c(3,6)
 sim.param.discri <- c(1.2,2.4)
 sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
-sim.param.difgrmF <- c(-3,0)
+sim.param.difgrmF <- c(-3,-1)
 sim.param.difgrmC <- c(3)
 sim.param.discri2 <- c(1.2, 2.4)
 sim.iter <- 1:100
