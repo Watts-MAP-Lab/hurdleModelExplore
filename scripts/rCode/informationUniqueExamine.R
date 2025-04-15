@@ -16,7 +16,7 @@ library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(6,12)
+sim.param.nitems <- c(5,10)
 sim.param.ncates <- c(4,7)
 sim.param.discri <- c(1.2,2.4)
 sim.param.2pl.spread <- c(2)
@@ -24,7 +24,7 @@ sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
 sim.param.difgrmF <- c(-2,-.5)
 sim.param.difgrmC <- c(2)
-sim.param.discri2 <- c(1.2, 2.4)
+sim.param.discri2 <- c(1, 2)
 sim.iter <- 1:100
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
@@ -275,19 +275,30 @@ for(i in 1:4){
   a_z = vals_loop$true_z_discrim
   b_z = vals_loop$true_z_diff
   vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
-  vals_loop$trueHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rho)
+  #vals_loop$trueHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rho)
   ## Do the same for estimated here -- need to protect against NA values in diff parameters
   a = vals_loop$est_grm_discrim
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "est_grm_diff", x = names(vals_loop))]))
   if(sum(is.na(b))>0){
     b[is.na(b)] <- 3
   }
+  ## Now check for multiple 3 in one row
+  if(sum(apply(b, 1, function(x) sum(duplicated(x)))) > 0){
+    ## Find row with duplicated difficulty
+    row.ident <- which(apply(b, 1, function(x) sum(duplicated(x))) != 0)
+    for(k in row.ident){
+      to.iter <- which(b[k,]==3)
+      length.iter <- length(to.iter)
+      new.diff <- seq(3, 5, length.out = length.iter)
+      b[k,to.iter] <- new.diff
+    }
+  }
   b = t(apply(b, 1, sort))
   a_z = vals_loop$est_z_discrim
   b_z = vals_loop$est_z_diff
   rhoEst <- unique(vals_loop$rho)
   vals_loop$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
-  vals_loop$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
+  #vals_loop$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
 
   ## Now organize the MIRT values here
   mirt.coef <- coef(mod_loopM, IRTpars=TRUE)
@@ -314,7 +325,7 @@ for(i in 1:4){
   colnames(vals_loopM)[1:3] <- c("est_z_discrim", "est_z_diff", "est_grm_discrim")
   colnames(vals_loopM)[-c(1:3)] <- paste("est_grm_diff_", 1:dim(vals_loopM[,-c(1:3)])[2], sep='')
   vals_loopM$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
-  vals_loopM$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
+  #vals_loopM$estHurdleRel2 <- estHurdleRel(rep_loop, a, b, a_z, b_z, rhoVal = rhoEst)
   vals_loopM$item <- 1:nrow(vals_loopM)
   ## Now add the mirt values
   vals_loop <- merge(vals_loop, vals_loopM, by=c("item"), suffixes = c("", "_MIRT"))
