@@ -117,7 +117,7 @@ model <- "
 "
 model <- gsub(x = model, pattern = "YYZ", replacement = all.sim.vals$nItem[seedVal])
 model <- gsub(x = model, pattern = "BBH", replacement = all.sim.vals$nItem[seedVal]+1)
-model <- gsub(x = model, pattern = "FNF", replacement = ncol(reps4$mplusMat))
+model <- gsub(x = model, pattern = "FNF", replacement = ncol(reps1$mplusMat))
 item.type.rep <- c(rep("2PL", all.sim.vals$nItem[seedVal]), rep("graded", all.sim.vals$nItem[seedVal]))
 sv1 <- mirt(data.frame(reps1$mplusMat), model = model, itemtype = item.type.rep)
 # sv2 <- mirt(data.frame(reps2$mplusMat), model = model, itemtype = item.type.rep)
