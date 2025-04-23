@@ -16,7 +16,7 @@ library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(5,10)
+sim.param.nitems <- c(6,12)
 sim.param.ncates <- c(4,7)
 sim.param.discri <- c(1.2,2.4)
 sim.param.2pl.spread <- c(2)
@@ -24,12 +24,13 @@ sim.param.sample <- c(15000)
 sim.param.faccor <- c(.3,.8)
 sim.param.difgrmF <- c(-2,-.5)
 sim.param.difgrmC <- c(2)
-sim.param.discri2 <- c(1, 2)
-sim.iter <- 1:100
+sim.param.dif2pl <- c(-3,-1,1)
+sim.param.discri2 <- c(1.2, 2.4)
+sim.iter <- 1:50
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
-                            sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.iter)
-colnames(all.sim.vals) <- c("nItem", "nCat", "discrim", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","iter")
+                            sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.param.dif2pl, sim.iter)
+colnames(all.sim.vals) <- c("nItem", "nCat", "discrim", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","dif2PL","iter")
 all.sim.vals$seed <- 1:nrow(all.sim.vals)
 seedVal <- as.integer(commandArgs(TRUE))
 #seedVal <- 1
@@ -52,10 +53,10 @@ b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim
 a_z = rep(all.sim.vals$grmDiscrim[seedVal], all.sim.vals$nItem[seedVal])
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal] - .3, all.sim.vals$grmDiscrim[seedVal] + .3)
 ## Need to generate 4 separate b_z levels
-b_z1 = runif(all.sim.vals$nItem[seedVal], min = -2, max=-2+all.sim.vals$diffSpread[seedVal])
-b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
-b_z3 = runif(all.sim.vals$nItem[seedVal], min = 0, max=0+all.sim.vals$diffSpread[seedVal])
-b_z4 = runif(all.sim.vals$nItem[seedVal], min = 1, max=1+all.sim.vals$diffSpread[seedVal])
+b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+all.sim.vals$diffSpread[seedVal])
+# b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
+# b_z3 = runif(all.sim.vals$nItem[seedVal], min = 0, max=0+all.sim.vals$diffSpread[seedVal])
+# b_z4 = runif(all.sim.vals$nItem[seedVal], min = 1, max=1+all.sim.vals$diffSpread[seedVal])
 muVals = c(0,0)
 rho <- all.sim.vals$facCor[seedVal]
 varCovMat = matrix(c(1,rho,rho,1), ncol=2)
@@ -63,9 +64,9 @@ N = all.sim.vals$n[seedVal]
 ## Now generate theta here
 theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
 reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
-reps2 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z2, muVals = muVals, varCovMat = varCovMat, theta = theta)
-reps3 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z3, muVals = muVals, varCovMat = varCovMat, theta = theta)
-reps4 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z4, muVals = muVals, varCovMat = varCovMat, theta = theta)
+# reps2 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z2, muVals = muVals, varCovMat = varCovMat, theta = theta)
+# reps3 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z3, muVals = muVals, varCovMat = varCovMat, theta = theta)
+# reps4 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z4, muVals = muVals, varCovMat = varCovMat, theta = theta)
 
 ## Run a quick check to make sure every response has equal 
 runCheck <- FALSE
@@ -104,9 +105,9 @@ while(runCheck){
 }
 
 s1 = reps1$mplusMat
-s2 = reps2$mplusMat
-s3 = reps3$mplusMat
-s4 = reps4$mplusMat
+# s2 = reps2$mplusMat
+# s3 = reps3$mplusMat
+# s4 = reps4$mplusMat
 
 ## Grab the MIRT estimates here
 model <- "
@@ -119,9 +120,9 @@ model <- gsub(x = model, pattern = "BBH", replacement = all.sim.vals$nItem[seedV
 model <- gsub(x = model, pattern = "FNF", replacement = ncol(reps4$mplusMat))
 item.type.rep <- c(rep("2PL", all.sim.vals$nItem[seedVal]), rep("graded", all.sim.vals$nItem[seedVal]))
 sv1 <- mirt(data.frame(reps1$mplusMat), model = model, itemtype = item.type.rep)
-sv2 <- mirt(data.frame(reps2$mplusMat), model = model, itemtype = item.type.rep)
-sv3 <- mirt(data.frame(reps3$mplusMat), model = model, itemtype = item.type.rep)
-sv4 <- mirt(data.frame(reps4$mplusMat), model = model, itemtype = item.type.rep)
+# sv2 <- mirt(data.frame(reps2$mplusMat), model = model, itemtype = item.type.rep)
+# sv3 <- mirt(data.frame(reps3$mplusMat), model = model, itemtype = item.type.rep)
+# sv4 <- mirt(data.frame(reps4$mplusMat), model = model, itemtype = item.type.rep)
 
 ## 2. Create the mplus model formulas
 ## Create a function which will return the mplus model strings based on the column names
@@ -149,9 +150,9 @@ retMplusHurdleInfo <- function(in.mat){
   return(outMplus)
 }
 d1 = retMplusHurdleInfo(s1)
-d2 = retMplusHurdleInfo(s2)
-d3 = retMplusHurdleInfo(s3)
-d4 = retMplusHurdleInfo(s4)
+# d2 = retMplusHurdleInfo(s2)
+# d3 = retMplusHurdleInfo(s3)
+# d4 = retMplusHurdleInfo(s4)
 
 ## 3. Estimate all mplus models
 ## Now create a function which will estimate these models
@@ -176,7 +177,7 @@ modelPrep <- function(in.mat, seedVal, min=TRUE){
 }
 
 ## Now prep a list of all of these values for mclapply
-strat.one3 <- list(d1, d2, d3, d4)
+strat.one3 <- list(d1)#, d2, d3, d4)
 #strat.one4 <- parallel::mclapply(strat.one3, FUN = function(x) modelPrep(x, seedVal = seedVal), mc.cores = length(strat.one3))
 strat.one4 <- lapply(strat.one3, FUN = function(x) modelPrep(x, seedVal = seedVal))
 
@@ -233,13 +234,13 @@ loadDatFromMplus <- function(seedVal, trueVals){
   return(all.params)
 }
 vals1 <- loadDatFromMplus(strat.one4[[1]], reps1)
-vals2 <- loadDatFromMplus(strat.one4[[2]], reps2)
-vals3 <- loadDatFromMplus(strat.one4[[3]], reps3)
-vals4 <- loadDatFromMplus(strat.one4[[4]], reps4)
+# vals2 <- loadDatFromMplus(strat.one4[[2]], reps2)
+# vals3 <- loadDatFromMplus(strat.one4[[3]], reps3)
+# vals4 <- loadDatFromMplus(strat.one4[[4]], reps4)
 
 ## Now go through each of these and add the estimated test reliability from alpha and omega
 vals_all <- NULL
-for(i in 1:4){
+for(i in 1){
   ## First get the values
   vals_loop <- get(paste("vals", i, sep=''))
   #vals_loopb <- get(paste("vals", i, "b",sep=''))
