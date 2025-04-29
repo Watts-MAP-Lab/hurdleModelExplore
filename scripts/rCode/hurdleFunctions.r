@@ -44,23 +44,23 @@ sim2PLMultiMod <- function(muVals = c(0,0), varCovMat = diag(2), a = matrix(rnor
 genDiffGRM <- function(num_items= 20, num_categories=5, min=0, max=2){
     diffs <- t(apply(matrix(runif(num_items*(num_categories-1), min = min, max = max), num_items), 1, cumsum))
     diffs <- -(diffs - rowMeans(diffs))
-    d <- diffs + rnorm(num_items, sd = .3)
+    d <- diffs# + rnorm(num_items, sd = .2)
     d <- t(apply(d, 1, sort))
     return(d)
 }
 
-# genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var = .5){
-#   ## Figure out how many difficulty params are needed
-#   num_dif = num_categories-1
-#   ## Now first create a vector of equidistant difficulty parameters for every item
-#   equi.vec <- seq(min, max, length.out = num_dif)
-#   ## Assign difficulty parameters here
-#   out.mat <- matrix(equi.vec, nrow=num_items, ncol=num_dif, byrow = TRUE)
-#   ## Add some error
-#   out.mat <- out.mat + rnorm(num_items * num_dif, sd = rnorm_var)
-#   out.mat <- t(apply(out.mat, 1, sort))
-#   return(out.mat)
-# }
+genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var = .5){
+ ## Figure out how many difficulty params are needed
+ num_dif = num_categories-1
+ ## Now first create a vector of equidistant difficulty parameters for every item
+ equi.vec <- seq(min, max, length.out = num_dif)
+ ## Assign difficulty parameters here
+ out.mat <- matrix(equi.vec, nrow=num_items, ncol=num_dif, byrow = TRUE)
+ ## Add some error
+ out.mat <- out.mat + rnorm(num_items * num_dif, sd = rnorm_var)
+ out.mat <- t(apply(out.mat, 1, sort))
+ return(out.mat)
+}
 
 ## Create a function here which will return all of the probs from a GRM model
 itemtraceGRM <- function(a, b, theta){
@@ -415,8 +415,8 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
   est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
   est.data2 <- simVals$mplusMat[,grep(pattern = "Sus", x = names(simVals$mplusMat))]
   if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
-    ## Insert some artificial respones into the data
-    ## FIrst idenitfy which column has the issue
+    ## Insert some artificial response into the data
+    ## First identify which column has the issue
     unique.resp.vals <- lapply(apply(est.data, 2,table), length)
     ## Now idenitfy columns
     inject.vals <- which.min(unique.resp.vals)

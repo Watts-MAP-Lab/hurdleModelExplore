@@ -22,7 +22,7 @@ sim.param.discri <- c(.5,1.7)
 sim.param.2pl.spread <- c(2)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
-sim.param.difgrmF <- c(-2,0)
+sim.param.difgrmF <- c(-3,-.5)
 sim.param.difgrmC <- c(2)
 sim.param.dif2pl <- c(-3,-1,1)
 sim.param.discri2 <- sim.param.discri
