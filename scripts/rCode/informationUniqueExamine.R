@@ -18,7 +18,7 @@ library("psych")
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(6,16)
 sim.param.ncates <- c(3,5)
-sim.param.discri <- c(.5,1.7)
+sim.param.discri <- c(.7,2)
 sim.param.2pl.spread <- c(2)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
@@ -48,10 +48,10 @@ if(file.exists(out.file)){
 ## First create the data -- this will start with the maximum full dataset, 9 total respone categories, full range of difficulty parameters
 ## This will also showcase where I need to streamline code with custom functions
 #a = rep(all.sim.vals$discrim[seedVal], all.sim.vals$nItem[seedVal])
-a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim[seedVal], all.sim.vals$discrim[seedVal] + 1.2)
-b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal] + 2.5)
+a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim[seedVal], all.sim.vals$discrim[seedVal] + 1.3)
+b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal] + 2.5, rnorm_var = .1)
 #a_z = rep(all.sim.vals$grmDiscrim[seedVal], all.sim.vals$nItem[seedVal])
-a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + 1.2)
+a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + 1.3)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+all.sim.vals$diffSpread[seedVal])
 # b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
