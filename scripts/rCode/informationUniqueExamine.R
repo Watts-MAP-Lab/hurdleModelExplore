@@ -18,8 +18,8 @@ library("psych")
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(6,16)
 sim.param.ncates <- c(3,5)
-sim.param.discri <- c(.7,2)
-sim.param.2pl.spread <- c(2)
+sim.param.discri <- c(.3,1.5)
+sim.param.2pl.spread <- c(1.2)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
 sim.param.difgrmF <- c(-3,-.5)
@@ -30,7 +30,7 @@ sim.iter <- 1:50
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
                             sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.param.dif2pl, sim.iter)
-colnames(all.sim.vals) <- c("nItem", "nCat", "discrim", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","dif2PL","iter")
+colnames(all.sim.vals) <- c("nItem", "nCat", "discrim2pl", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","dif2PL","iter")
 all.sim.vals$seed <- 1:nrow(all.sim.vals)
 seedVal <- as.integer(commandArgs(TRUE))
 #seedVal <- 1
@@ -45,18 +45,19 @@ if(file.exists(out.file)){
 ## --run-test-sim ------------
 ## I will run through a single test sim here and see how I can best, and most efficiently run this
 ## I really need to focus on the memory leakage problem the R has, especially when running large loops
-## First create the data -- this will start with the maximum full dataset, 9 total respone categories, full range of difficulty parameters
+## First create the data -- this will start with the maximum full dataset, 9 total response categories, full range of difficulty parameters
 ## This will also showcase where I need to streamline code with custom functions
-#a = rep(all.sim.vals$discrim[seedVal], all.sim.vals$nItem[seedVal])
-a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim[seedVal], all.sim.vals$discrim[seedVal] + 1.3)
+## Run a spread check for discrim values
+add.val.2pl <- 1.2
+add.val.grm <- 1.2
+if(all.sim.vals$grmDiscrim[seedVal]==1.5){add.val.grm=2}
+if(all.sim.vals$discrim2pl[seedVal]==1.5){add.val.2pl=2}
+a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
 b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal] + 2.5, rnorm_var = .1)
-#a_z = rep(all.sim.vals$grmDiscrim[seedVal], all.sim.vals$nItem[seedVal])
-a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + 1.3)
+a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+all.sim.vals$diffSpread[seedVal])
-# b_z2 = runif(all.sim.vals$nItem[seedVal], min = -1, max=-1+all.sim.vals$diffSpread[seedVal])
-# b_z3 = runif(all.sim.vals$nItem[seedVal], min = 0, max=0+all.sim.vals$diffSpread[seedVal])
-# b_z4 = runif(all.sim.vals$nItem[seedVal], min = 1, max=1+all.sim.vals$diffSpread[seedVal])
+
 muVals = c(0,0)
 rho <- all.sim.vals$facCor[seedVal]
 varCovMat = matrix(c(1,rho,rho,1), ncol=2)
@@ -64,8 +65,6 @@ N = all.sim.vals$n[seedVal]
 ## Now generate theta here
 theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
 reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
-
-s1 = reps1$mplusMat
 
 ## Grab the MIRT estimates here
 model <- "
@@ -150,11 +149,18 @@ for(i in 1){
   ## if any are shorter -- add a large value to these b estimates
   b_check <- table(unlist(lapply(b, length)))
   if(length(b_check)>1){
-    ## add a large difficulty value to the b missing a response option
-    b_check <- which.min(lapply(b, length))
-    b[[b_check]] <- c(b[[b_check]], 8)
+    ## Find all difficulty values w/o the correct number of values
+    length.vec <- unlist(lapply(b, length))
+    correct.val <- max(length.vec)
+    ## Grab all values w/ length != 4
+    index <- which(length.vec != correct.val)
+    for(k in index){
+      ident.val <- paste("Sev_", k, sep='')
+      length.to.add <- correct.val- length(b[[ident.val]])
+      add.vals <- seq(4, 8, length.out = length.to.add)
+      b[[ident.val]] <- c(b[[ident.val]], add.vals)
+    }
   }
-  
   b <- t(bind_rows(b))
   #b <- t(apply(b, 1, function(x) sort(x, decreasing = FALSE)))
   rhoEst <- unique(mirt.coef$GroupPars["par","COV_21"])
