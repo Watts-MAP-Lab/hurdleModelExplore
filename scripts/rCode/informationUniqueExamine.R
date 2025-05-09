@@ -13,20 +13,22 @@ library("numDeriv")
 suppressPackageStartupMessages(library(MplusAutomation))
 library("mirt")
 library("psych")
+library("knitr")
+library("kableExtra")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
 sim.param.nitems <- c(6,16)
 sim.param.ncates <- c(3,5)
 sim.param.discri <- c(.6,1.5)
-sim.param.2pl.spread <- c(2)
+sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
 sim.param.difgrmF <- c(-3,-.5)
-sim.param.difgrmC <- c(2)
-sim.param.dif2pl <- c(-3,-1,1)
+sim.param.difgrmC <- c(3)
+sim.param.dif2pl <- c(-3,1)
 sim.param.discri2 <- sim.param.discri
-sim.iter <- 1:50
+sim.iter <- 1:75
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
                             sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.param.dif2pl, sim.iter)
@@ -110,15 +112,22 @@ for(i in 1){
   ## Now estimate alpha & omega
   test_dat <- as.data.frame(rep_loop$responses)
   #rel.alpha <- psych::alpha(test_dat)
-  rel.alpha <- psych::alpha(polychoric(test_dat)$rho)
-  rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
-  rel.uni <- psych::unidim(test_dat, cor="poly")
-  vals_loop$omega_h <- rel.ome$omega_h
-  vals_loop$alpha <- rel.alpha$total$raw_alpha
-  vals_loop$omega_t <- rel.ome$omega.tot
-  vals_loop$omega_h <- rel.ome$omega_h
-  vals_loop$G_six <- rel.ome$G6
+  # rel.alpha <- psych::alpha(polychoric(test_dat)$rho)
+  # rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
+  # rel.uni <- psych::unidim(test_dat, cor="poly")
   cor.mat <- psych::polychoric(rep_loop$responses)
+  rel.all <- psych::reliability(cor.mat$rho, n.obs = 15000, nfactors=3,plot=FALSE)
+  vals_loop$omega_h <- rel.all$result.df[,"omega_h"]
+  vals_loop$alpha <- rel.all$result.df[,"alpha"]
+  vals_loop$omega_t <- rel.all$result.df[,"omega.tot"]
+  vals_loop$Uni <- rel.all$result.df[,"Uni"]
+  vals_loop$tau <- rel.all$result.df[,"tau"]
+  vals_loop$cong <- rel.all$result.df[,"cong"]
+  vals_loop$CFI <- rel.all$result.df[,"CFI"]
+  vals_loop$ECV <- rel.all$result.df[,"ECV"]
+  vals_loop$Beta <- rel.all$result.df[,"Beta"]
+  vals_loop$EVR <- rel.all$result.df[,"EVR"]
+  vals_loop$MAP <- rel.all$result.df[,"MAP"]
   split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
   vals_loop$lambda1Rel = split.half.rel$lambda.1
   vals_loop$lambda2Rel = split.half.rel$lambda.2
@@ -126,9 +135,7 @@ for(i in 1){
   vals_loop$lambda4Rel = split.half.rel$lambda.4
   vals_loop$lambda5Rel = split.half.rel$lambda.5
   vals_loop$lambda6Rel = split.half.rel$lambda.6
-  vals_loop$alpheFromOme <- rel.ome$alpha
-  vals_loop$unidim <- rel.uni$uni["u"]
-  
+
   ##  Now grab the true reliability values
   a = vals_loop$true_grm_discrim
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
