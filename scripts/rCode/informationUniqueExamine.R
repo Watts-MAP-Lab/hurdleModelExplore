@@ -13,13 +13,11 @@ library("numDeriv")
 suppressPackageStartupMessages(library(MplusAutomation))
 library("mirt")
 library("psych")
-library("knitr")
-library("kableExtra")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(6,16)
-sim.param.ncates <- c(3,5)
+sim.param.nitems <- c(6,12)
+sim.param.ncates <- c(4,7)
 sim.param.discri <- c(.6,1.5)
 sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
@@ -128,6 +126,7 @@ for(i in 1){
   vals_loop$Beta <- rel.all$result.df[,"Beta"]
   vals_loop$EVR <- rel.all$result.df[,"EVR"]
   vals_loop$MAP <- rel.all$result.df[,"MAP"]
+  vals_loop$skewVal <- as.numeric(psych::describe(rowSums(rep_loop$responses))["skew"])
   split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
   vals_loop$lambda1Rel = split.half.rel$lambda.1
   vals_loop$lambda2Rel = split.half.rel$lambda.2
@@ -135,7 +134,28 @@ for(i in 1){
   vals_loop$lambda4Rel = split.half.rel$lambda.4
   vals_loop$lambda5Rel = split.half.rel$lambda.5
   vals_loop$lambda6Rel = split.half.rel$lambda.6
-
+  omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = 15000)
+  vals_loop$singleFactorOmegaT <- omega.sem.val$omegaSem$omega.tot
+  ## Now do these same metrics while removing all 0 values
+  rm.index <- which(rowSums(rep_loop$responses)==0)
+  cor.mat <- psych::polychoric(rep_loop$responses[-rm.index,])
+  rel.all <- psych::reliability(cor.mat$rho, n.obs = 15000, nfactors=3,plot=FALSE)
+  vals_loop$omega_h_NoZ <- rel.all$result.df[,"omega_h"]
+  vals_loop$alpha_NoZ <- rel.all$result.df[,"alpha"]
+  vals_loop$omega_t_NoZ <- rel.all$result.df[,"omega.tot"]
+  vals_loop$Uni_NoZ <- rel.all$result.df[,"Uni"]
+  vals_loop$tau_NoZ <- rel.all$result.df[,"tau"]
+  vals_loop$cong_NoZ <- rel.all$result.df[,"cong"]
+  vals_loop$CFI_NoZ <- rel.all$result.df[,"CFI"]
+  vals_loop$ECV_NoZ <- rel.all$result.df[,"ECV"]
+  vals_loop$Beta_NoZ <- rel.all$result.df[,"Beta"]
+  vals_loop$EVR_NoZ <- rel.all$result.df[,"EVR"]
+  vals_loop$MAP_NoZ <- rel.all$result.df[,"MAP"]
+  vals_loop$skewVal_NoZ <- as.numeric(psych::describe(rowSums(rep_loop$responses[-rm.index,]))["skew"])
+  split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
+  omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = 15000 - length(rm.index))
+  vals_loop$singleFactorOmegaT_NoZ <- omega.sem.val$omegaSem$omega.tot
+  
   ##  Now grab the true reliability values
   a = vals_loop$true_grm_discrim
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
@@ -185,7 +205,7 @@ for(i in 1){
   ## Now do the same for only the >0 values
   iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
   mod <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
-  vals_loop$grmRelExludeZero <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
