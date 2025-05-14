@@ -24,7 +24,7 @@ sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
 sim.param.difgrmF <- c(-3,-.5)
 sim.param.difgrmC <- c(3)
-sim.param.dif2pl <- c(-3,1)
+sim.param.dif2pl <- c(-2,1)
 sim.param.discri2 <- sim.param.discri
 sim.iter <- 1:75
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
@@ -137,9 +137,18 @@ for(i in 1){
   omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = 15000)
   vals_loop$singleFactorOmegaT <- omega.sem.val$omegaSem$omega.tot
   ## Now do these same metrics while removing all 0 values
-  rm.index <- which(rowSums(rep_loop$responses)==0)
-  cor.mat <- psych::polychoric(rep_loop$responses[-rm.index,])
-  rel.all <- psych::reliability(cor.mat$rho, n.obs = 15000, nfactors=3,plot=FALSE)
+  if(sum(rowSums(rep_loop$responses)==0)>0){
+    rm.index <- which(rowSums(rep_loop$responses)==0)
+    cor.mat <- psych::polychoric(rep_loop$responses[-rm.index,])
+    tmp.skew <- as.numeric(psych::describe(rowSums(rep_loop$responses[-rm.index,]))["skew"])
+    n.obsVal <- 15000 - length(rm.index)
+  }else{
+    cor.mat <- psych::polychoric(rep_loop$responses)
+    rm.index <- NULL
+    tmp.skew <- as.numeric(psych::describe(rowSums(rep_loop$responses))["skew"])
+    n.obsVal <- 15000
+  }
+  rel.all <- psych::reliability(cor.mat$rho, n.obs = n.obsVal, nfactors=3,plot=FALSE)
   vals_loop$omega_h_NoZ <- rel.all$result.df[,"omega_h"]
   vals_loop$alpha_NoZ <- rel.all$result.df[,"alpha"]
   vals_loop$omega_t_NoZ <- rel.all$result.df[,"omega.tot"]
@@ -151,9 +160,9 @@ for(i in 1){
   vals_loop$Beta_NoZ <- rel.all$result.df[,"Beta"]
   vals_loop$EVR_NoZ <- rel.all$result.df[,"EVR"]
   vals_loop$MAP_NoZ <- rel.all$result.df[,"MAP"]
-  vals_loop$skewVal_NoZ <- as.numeric(psych::describe(rowSums(rep_loop$responses[-rm.index,]))["skew"])
+  vals_loop$skewVal_NoZ <- tmp.skew
   split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
-  omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = 15000 - length(rm.index))
+  omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = n.obsVal)
   vals_loop$singleFactorOmegaT_NoZ <- omega.sem.val$omegaSem$omega.tot
   
   ##  Now grab the true reliability values
@@ -202,10 +211,16 @@ for(i in 1){
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
   vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  if(!identical(NULL, rm.index)){
+    mod <- mirt::mirt(data.frame(rep_loop$responses[-rm.index,]), 1, itemtype = "graded")
+    vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  }else{
+    vals_loop$grmRel_NoZ <- vals_loop$grmRel
+  }
   ## Now do the same for only the >0 values
   iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
   mod <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
-  vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
