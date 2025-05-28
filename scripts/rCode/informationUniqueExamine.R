@@ -16,17 +16,17 @@ library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(6,12)
-sim.param.ncates <- c(4,7)
-sim.param.discri <- c(.6,1.5)
+sim.param.nitems <- c(5,10)
+sim.param.ncates <- c(3,7)
+sim.param.discri <- c(1.3,2.4)
 sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
-sim.param.difgrmF <- c(-3,-.5)
-sim.param.difgrmC <- c(3)
-sim.param.dif2pl <- c(-2,1)
-sim.param.discri2 <- sim.param.discri
-sim.iter <- 1:75
+sim.param.difgrmF <- c(-2,-.5)
+sim.param.difgrmC <- c(1,3)
+sim.param.dif2pl <- c(-3,-1)
+sim.param.discri2 <- c(2,3.5)
+sim.iter <- 1:40
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
                             sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.param.dif2pl, sim.iter)
@@ -50,10 +50,8 @@ if(file.exists(out.file)){
 ## Run a spread check for discrim values
 add.val.2pl <- 1.2
 add.val.grm <- 1.2
-if(all.sim.vals$grmDiscrim[seedVal]==1.5){add.val.grm=2}
-if(all.sim.vals$discrim2pl[seedVal]==1.5){add.val.2pl=2}
 a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
-b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal] + 2.5, rnorm_var = .1)
+b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmC[seedVal], rnorm_var = .1)
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+all.sim.vals$diffSpread[seedVal])
@@ -114,6 +112,7 @@ for(i in 1){
   # rel.ome <- psych::omega(test_dat, poly=TRUE, nfactors = 3, plot = FALSE)
   # rel.uni <- psych::unidim(test_dat, cor="poly")
   cor.mat <- psych::polychoric(rep_loop$responses)
+  cor.mat1 <- cor.mat$rho
   rel.all <- psych::reliability(cor.mat$rho, n.obs = 15000, nfactors=3,plot=FALSE)
   vals_loop$omega_h <- rel.all$result.df[,"omega_h"]
   vals_loop$alpha <- rel.all$result.df[,"alpha"]
