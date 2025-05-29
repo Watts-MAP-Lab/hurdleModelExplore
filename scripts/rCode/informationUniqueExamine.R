@@ -16,22 +16,7 @@ library("psych")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
-sim.param.nitems <- c(5,10)
-sim.param.ncates <- c(3,7)
-sim.param.discri <- c(1.3,2.4)
-sim.param.2pl.spread <- c(3)
-sim.param.sample <- c(15000)
-sim.param.faccor <- c(.2,.8)
-sim.param.difgrmF <- c(-2,-.5)
-sim.param.difgrmC <- c(1,3)
-sim.param.dif2pl <- c(-3,-1)
-sim.param.discri2 <- c(2,3.5)
-sim.iter <- 1:40
-all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
-                            sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
-                            sim.param.difgrmF, sim.param.difgrmC, sim.param.discri2,sim.param.dif2pl, sim.iter)
-colnames(all.sim.vals) <- c("nItem", "nCat", "discrim2pl", "diffSpread", "n", "facCor", "difGrmF","difGrmC","grmDiscrim","dif2PL","iter")
-all.sim.vals$seed <- 1:nrow(all.sim.vals)
+source("./scripts/rCode/simParam.r")
 seedVal <- as.integer(commandArgs(TRUE))
 #seedVal <- 1
 set.seed(seedVal)
@@ -51,10 +36,10 @@ if(file.exists(out.file)){
 add.val.2pl <- 1.2
 add.val.grm <- 1.2
 a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
-b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmC[seedVal], rnorm_var = .1)
+b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+3, rnorm_var = .25)
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
-b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+all.sim.vals$diffSpread[seedVal])
+b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+3)
 
 muVals = c(0,0)
 rho <- all.sim.vals$facCor[seedVal]
