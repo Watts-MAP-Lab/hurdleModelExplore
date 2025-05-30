@@ -39,7 +39,7 @@ a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal
 b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+3, rnorm_var = .25)
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
-b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+3)
+b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+2)
 
 muVals = c(0,0)
 rho <- all.sim.vals$facCor[seedVal]

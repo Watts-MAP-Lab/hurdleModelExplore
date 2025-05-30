@@ -7,7 +7,7 @@ sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
 sim.param.difgrmF <- c(-2,0.5)
 sim.param.difgrmC <- c(3)
-sim.param.dif2pl <- c(-3,0.5)
+sim.param.dif2pl <- c(-2,1)
 sim.param.discri2 <- c(1.8,3)
 sim.iter <- 1:40
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 

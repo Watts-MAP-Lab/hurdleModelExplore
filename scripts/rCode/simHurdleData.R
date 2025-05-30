@@ -1,3 +1,6 @@
+## Clean slate
+rm(list=ls())
+
 ## These functions will be used to create data for a hurdle model estimation
 
 ## First create a funciton which will simulate a 2PL model given:
@@ -51,13 +54,14 @@ sim2PLMultiMod <- function(muVals = c(0,0), varCovMat = diag(2), a = matrix(rnor
 
 
 ## Quick helper function
-genDiffGRM <- function(num_items= 20, num_categories=5){
-    diffs <- t(apply(matrix(runif(num_items*(num_categories-1), .3, 1), num_items), 1, cumsum))
+genDiffGRM <- function(num_items= 20, num_categories=5, min=0, max=2){
+    diffs <- t(apply(matrix(runif(num_items*(num_categories-1), min = min, max = max), num_items), 1, cumsum))
     diffs <- -(diffs - rowMeans(diffs))
     d <- diffs + rnorm(num_items)
     d <- t(apply(d, 1, sort))
     return(d)
 }
+
 ## Create a function which will return values for a GRM model
 # n: number of examinees
 # m: number of items
@@ -121,7 +125,6 @@ itemtraceGRM <- function(a, b, theta){
 # N = sample size
 # k = categories
 simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N){
-
     ## First obtain the theta values
     theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
     numItems = length(a)
@@ -237,9 +240,10 @@ return_Mod_Params <- function(juliaOutput, dataIn){
 }
 
 varCovMat <- matrix(c(1,.2,.2,1), nrow=2)
+varCovMat <- matrix(c(c(1, .2, 0),c(.2, 1, .4), c(0, .4, 1)), nrow=3, byrow = TRUE)
 n <- 5000
 num.items <- 3
-out.datA <- simulate_hurdle_responses(a = rep(3, num.items),b_z = seq(-1, 1, length.out=num.items),a_z = rep(3, num.items), b = genDiffGRM(num_items = num.items, num_categories = 3), muVals = c(0,0), varCovMat, 5000)
+out.datA <- simulate_hurdle_responses(a = rep(3, num.items),b_z = seq(-1, 1, length.out=num.items),a_z = rep(3, num.items), b = genDiffGRM(num_items = num.items, num_categories = 3), muVals = c(0,0,0), varCovMat, 5000)
 out.dat <- out.datA$responses
 write.csv(out.dat, file="./data/testSimDat.csv", quote=F, row.names=F)
 out.datT <- out.datA$tabs
@@ -248,29 +252,49 @@ val <- system("julia ./scripts/juliaCode/mHurdleFlex.jl ./data/testSimDat.csv ./
 checkVals <- return_Mod_Params(val, out.datA)
 
 ## Now create al of the simulated datasets here
-sim.param.nitems <- c(3,5,7,9)
-sim.param.ncates <- c(3,5,7,9)
-sim.param.discri <- c(2,3)
-sim.param.diffic <- c(-2,-1)
-sim.param.sample <- c(500, 1000)
+sim.param.nitems <- c(5,9)
+sim.param.ncates <- c(3,7)
+sim.param.discri <- c(3)
+sim.param.diffic <- c(-1,1)
+sim.param.sample <- c(1000)
 sim.param.faccor <- c(.2, .4, .7)
-all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, sim.param.diffic, sim.param.sample, sim.param.faccor)
-sim.datasets <- 10
+sim.param.critco <- c(.2, .4, .7)
+sim.param.difgrm <- c(-1, 0)
+all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
+                            sim.param.diffic, sim.param.sample, sim.param.faccor, 
+                            sim.param.critco, sim.param.difgrm)
+sim.datasets <- 100
 for(i in 1:nrow(all.sim.vals)){
     ## Frist create the varcovar matrix
-    varCovMat <- matrix(c(1,all.sim.vals[i,6],all.sim.vals[i,6],1), nrow=2)
+    row.1 <- c(1,all.sim.vals[i,6], 0)
+    row.2 <- c(all.sim.vals[i,6], 1, all.sim.vals[i,7])
+    row.3 <- c(0, all.sim.vals[i,7], 1)
+    varCovMat1 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)
+    row.1 <- c(1,all.sim.vals[i,6], all.sim.vals[i,7])
+    row.2 <- c(all.sim.vals[i,6], 1, 0)
+    row.3 <- c(all.sim.vals[i,7], 0,1)
+    varCovMat2 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)
+    row.1 <- c(1,all.sim.vals[i,6], all.sim.vals[i,7])
+    row.2 <- c(all.sim.vals[i,6], 1, all.sim.vals[i,7])
+    row.3 <- c(all.sim.vals[i,7], all.sim.vals[i,7], 1)
+    varCovMat3 <- matrix(c(row.1, row.2, row.3), nrow = 3, byrow=T)    
     ## Now make the datasets here
     for(j in 1:sim.datasets){
         set.seed(j)
         cat("\r",paste("Outer loop: ", i, "Inner loop: ", j))
         out.directory <- paste('./data/simdir_', i,sep='')
-        out.file <- paste(out.directory,'/fileVal_', j,'.csv', sep='')
+        out.file <- paste(out.directory,'/fileVal_', j,'.RData', sep='')
         dir.create(out.directory, showWarnings = FALSE)
         ## Now simulate the data
-        out.data <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 1, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
-        b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2]), muVals = c(0,0), varCovMat, all.sim.vals[i,5])
+        out.data1 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
+        b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat1, all.sim.vals[i,5])
+        out.data2 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
+        b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat2, all.sim.vals[i,5])
+        out.data3 <- simulate_hurdle_responses(a = rep(all.sim.vals[i,3], all.sim.vals[i,1]),b_z = seq(all.sim.vals[i,4], 2, length.out=all.sim.vals[i,1]),a_z = rep(all.sim.vals[i,3], all.sim.vals[i,1]), 
+        b = genDiffGRM(num_items = all.sim.vals[i,1], num_categories = all.sim.vals[i,2], min = all.sim.vals[i,8]), muVals = c(0,0,0), varCovMat3, all.sim.vals[i,5])
+        out.vals <- list(dat1 = out.data1, dat2 = out.data2, dat3 = out.data3)
         ## Now write the data
-        write.csv(out.data$tabs, file=out.file, quote=F, row.names=F)
+        saveRDS(out.vals, file=out.file)
     }
 }
 print("Done")
