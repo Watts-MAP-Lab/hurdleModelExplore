@@ -184,7 +184,7 @@ for(i in 1){
 reps1$theta$rowSums <- rowSums(reps1$responses)
 reps1$theta$grmFacScore <- fscores(mod)
 reps1$theta$grmFacScoreRM <- fscores(mod.rm)
-reps1$theta$factorScores <- psych::fac(reps1$responses, 1, cor = "poly")$scores[,1]
+reps1$theta$factorScores <- psych::fa.poly(reps1$responses, 1)$scores$scores[,1]
 reps1$theta$estSus <- fscores(sv1)[,1]
 reps1$theta$estSev <- fscores(sv1)[,2]
 colnames(reps1$theta) <- c("trueSus", "trueSev", "eapTrueSusParam", "eapTrueSevParam","rowSum", "estGRM", "estGRMrm", "est1Fac", "estSus", "estSev")
