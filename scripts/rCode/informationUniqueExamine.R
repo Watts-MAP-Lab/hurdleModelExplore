@@ -36,11 +36,10 @@ if(file.exists(out.file)){
 add.val.2pl <- 1.2
 add.val.grm <- 1.2
 a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
-b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+3, rnorm_var = .25)
+b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+2.5, rnorm_var = .2)
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+2)
-
 muVals = c(0,0)
 rho <- all.sim.vals$facCor[seedVal]
 varCovMat = matrix(c(1,rho,rho,1), ncol=2)
@@ -120,42 +119,18 @@ for(i in 1){
   vals_loop$lambda6Rel = split.half.rel$lambda.6
   omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = 15000)
   vals_loop$singleFactorOmegaT <- omega.sem.val$omegaSem$omega.tot
-  ## Now do these same metrics while removing all 0 values
-  if(sum(rowSums(rep_loop$responses)==0)>0){
-    rm.index <- which(rowSums(rep_loop$responses)==0)
-    cor.mat <- psych::polychoric(rep_loop$responses[-rm.index,])
-    tmp.skew <- as.numeric(psych::describe(rowSums(rep_loop$responses[-rm.index,]))["skew"])
-    n.obsVal <- 15000 - length(rm.index)
-  }else{
-    cor.mat <- psych::polychoric(rep_loop$responses)
-    rm.index <- NULL
-    tmp.skew <- as.numeric(psych::describe(rowSums(rep_loop$responses))["skew"])
-    n.obsVal <- 15000
-  }
-  rel.all <- psych::reliability(cor.mat$rho, n.obs = n.obsVal, nfactors=3,plot=FALSE)
-  vals_loop$omega_h_NoZ <- rel.all$result.df[,"omega_h"]
-  vals_loop$alpha_NoZ <- rel.all$result.df[,"alpha"]
-  vals_loop$omega_t_NoZ <- rel.all$result.df[,"omega.tot"]
-  vals_loop$Uni_NoZ <- rel.all$result.df[,"Uni"]
-  vals_loop$tau_NoZ <- rel.all$result.df[,"tau"]
-  vals_loop$cong_NoZ <- rel.all$result.df[,"cong"]
-  vals_loop$CFI_NoZ <- rel.all$result.df[,"CFI"]
-  vals_loop$ECV_NoZ <- rel.all$result.df[,"ECV"]
-  vals_loop$Beta_NoZ <- rel.all$result.df[,"Beta"]
-  vals_loop$EVR_NoZ <- rel.all$result.df[,"EVR"]
-  vals_loop$MAP_NoZ <- rel.all$result.df[,"MAP"]
-  vals_loop$skewVal_NoZ <- tmp.skew
-  split.half.rel <- suppressWarnings(psych::guttman(r = cor.mat$rho))
-  omega.sem.val <- omegaSem(m = cor.mat$rho, nfactors=1, plot = FALSE, n.obs = n.obsVal)
-  vals_loop$singleFactorOmegaT_NoZ <- omega.sem.val$omegaSem$omega.tot
-  
+
   ##  Now grab the true reliability values
   a = vals_loop$true_grm_discrim
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
   a_z = vals_loop$true_z_discrim
   b_z = vals_loop$true_z_diff
-  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
-
+  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
+  ## NOw obtain the true reliability using the obsevred varainces
+  true.score.var <- var(reps1$theta$X2)
+  error.var <- var(reps1$theta$eapSev - reps1$theta$X2)
+  vals_loop$trueRel <- true.score.var / (true.score.var + error.var)
+  
   ## Now organize the MIRT values here
   mirt.coef <- coef(mod_loopM, IRTpars=TRUE)
   ## First grab all of the a vals
@@ -195,21 +170,27 @@ for(i in 1){
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
   vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
-  if(!identical(NULL, rm.index)){
-    mod <- mirt::mirt(data.frame(rep_loop$responses[-rm.index,]), 1, itemtype = "graded")
-    vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
-  }else{
-    vals_loop$grmRel_NoZ <- vals_loop$grmRel
-  }
+  # mod <- mirt::mirt(data.frame(rep_loop$responses[-rm.index,]), 1, itemtype = "graded")
+  # vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   ## Now do the same for only the >0 values
   iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
-  mod <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
-  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  mod.rm <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
+  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod.rm, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
+## Now prep the response patterns and theta values
+#reps1$theta$responsePattern <- apply(reps1$responses, 1, function(x) paste(x, collapse = "-"))
+reps1$theta$rowSums <- rowSums(reps1$responses)
+reps1$theta$grmFacScore <- fscores(mod)
+reps1$theta$grmFacScoreRM <- fscores(mod.rm)
+reps1$theta$factorScores <- psych::fac(reps1$responses, 1, cor = "poly")$scores[,1]
+reps1$theta$estSus <- fscores(sv1)[,1]
+reps1$theta$estSev <- fscores(sv1)[,2]
+colnames(reps1$theta) <- c("trueSus", "trueSev", "eapTrueSusParam", "eapTrueSevParam","rowSum", "estGRM", "estGRMrm", "est1Fac", "estSus", "estSev")
+
 ## Now save these
-out.list <- list(allParams = vals_all)
+out.list <- list(allParams = vals_all, thetaVals = reps1$theta)
 saveRDS(out.list, file=out.file)
 
 ## Now clean up mplus dir

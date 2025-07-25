@@ -127,7 +127,7 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
           }
       }
   }
-    ## Now I need to turn this into response categories
+  ## Now I need to turn this into response categories
   responses = matrix(NA, nrow = N, ncol = numItems)
   for(i in 1:N){
       for( j in 1:numItems){
@@ -143,7 +143,7 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
           responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
       }
   }
-  ## Now caluclate the cross tabs
+  ## Now calculate the cross tabs
   responses2 <- data.frame(responses)
   crosstab <- responses2 %>%
       group_by(across(everything())) %>%
@@ -166,9 +166,33 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   col.names.sev <- paste("Sev_", 1:ncol(matrix.mplus2), sep='')
   matrix.mplus <- data.frame(matrix.mplus)
   colnames(matrix.mplus) <- c(col.names.sus, col.names.sev)
-  
+  ## Now add the true theta estimate using the real hurdle parameters
+  ## Create any global vars needed
+  qpoints <- expand.grid(seq(-4, 4, .05), seq(-4, 4, .05))
+  prior <- mvtnorm::dmvnorm(qpoints, muVals, varCovMat)
+  itemtrace = trace.line.pts(a, b, a_z, b_z, qpoints)
+  theta = data.frame(theta)
+  theta$eapSus <- NA
+  theta$eapSev <- NA
+  theta$mapSus <- NA
+  theta$mapSev <- NA
+  for(i in 1:N){
+    ## Obtain the score for this individual
+    pattern <- responses2[i,]
+    lhood <- score(pattern, itemtrace, qpoints)
+    eap2PL_Hurdle <- sum(lhood*prior*qpoints$Var1)/sum(lhood*prior)
+    eapGRM_Hurdle <- sum(lhood*prior*qpoints$Var2)/sum(lhood*prior)
+    theta$eapSus[i] <- eap2PL_Hurdle
+    theta$eapSev[i] <- eapGRM_Hurdle
+    ## Now do the MAP estimate as well
+    map2PL_Hurdle <- qpoints[which.max(lhood*prior),1]
+    mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2]
+    theta$mapSus[i] <- map2PL_Hurdle
+    theta$mapSev[i] <- mapGRM_Hurdle
+    
+  }
   ## Now return everything
-  out.data = list(responses = responses, theta = data.frame(theta), tabs = crosstab,
+  out.data = list(responses = responses, theta = theta, tabs = crosstab,
   a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
   return(out.data)
 }
@@ -278,7 +302,6 @@ trace.line.pts <- function(a, b, a_z, b_z, theta){
   }
   return(itemtrace)
 }
-
 score <- function(response_pattern, itemtrace, qPoints){
     lhood <- rep(1, dim(qPoints)[1])
     nitems <- dim(itemtrace[[1]])[1]
