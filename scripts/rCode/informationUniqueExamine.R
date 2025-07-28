@@ -33,10 +33,10 @@ if(file.exists(out.file)){
 ## First create the data -- this will start with the maximum full dataset, 9 total response categories, full range of difficulty parameters
 ## This will also showcase where I need to streamline code with custom functions
 ## Run a spread check for discrim values
-add.val.2pl <- 1.2
-add.val.grm <- 1.2
+add.val.2pl <- 1.5
+add.val.grm <- 1.5
 a = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$grmDiscrim[seedVal], all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
-b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+2.5, rnorm_var = .2)
+b = genDiffGRM(num_items = all.sim.vals$nItem[seedVal], num_categories = all.sim.vals$nCat[seedVal], min = all.sim.vals$difGrmF[seedVal], max = all.sim.vals$difGrmF[seedVal]+2.5, rnorm_var = .3)
 a_z = runif(n = all.sim.vals$nItem[seedVal], min = all.sim.vals$discrim2pl[seedVal], all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 ## Need to generate 4 separate b_z levels
 b_z1 = runif(all.sim.vals$nItem[seedVal], min = all.sim.vals$dif2PL[seedVal], max=all.sim.vals$dif2PL[seedVal]+2)
@@ -130,6 +130,13 @@ for(i in 1){
   true.score.var <- var(reps1$theta$X2)
   error.var <- var(reps1$theta$eapSev - reps1$theta$X2)
   vals_loop$trueRel <- true.score.var / (true.score.var + error.var)
+  ## Now compare hurd info obtained from MIRT
+  ## Estimate test info using the expand grid with factor correlations
+  ## Isolate those that sum to 90
+  t2 <- mirt::testinfo(sv1, Theta = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), degrees = c(0,90))
+  vals_loop$mirtHurdleInfo0_90 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(0,90)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
+  vals_loop$mirtHurdleInfo45_45 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(45,45)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
+  vals_loop$mirtHurdleInfo90_0 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(90,0)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
   
   ## Now organize the MIRT values here
   mirt.coef <- coef(mod_loopM, IRTpars=TRUE)

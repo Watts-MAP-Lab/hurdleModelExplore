@@ -1,14 +1,14 @@
 ## May 29th 2025
 sim.param.nitems <- c(5,10)
 sim.param.ncates <- c(3,6)
-sim.param.discri <- c(.8,1.8)
+sim.param.discri <- c(.5,2)
 sim.param.2pl.spread <- c(3)
 sim.param.sample <- c(15000)
 sim.param.faccor <- c(.2,.8)
 sim.param.difgrmF <- c(-2,0.5)
 sim.param.difgrmC <- c(3)
 sim.param.dif2pl <- c(-2,1)
-sim.param.discri2 <- c(1.8,4.5)
+sim.param.discri2 <- c(.5,2)
 sim.iter <- 1:50
 all.sim.vals <- expand.grid(sim.param.nitems, sim.param.ncates, sim.param.discri, 
                             sim.param.2pl.spread,sim.param.sample, sim.param.faccor, 
