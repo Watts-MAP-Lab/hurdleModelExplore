@@ -169,7 +169,7 @@ for(i in 1){
   vals_loopM <- bind_cols(a_z, b_z,a, b)
   colnames(vals_loopM)[1:3] <- c("est_z_discrim", "est_z_diff", "est_grm_discrim")
   colnames(vals_loopM)[-c(1:3)] <- paste("est_grm_diff_", 1:dim(vals_loopM[,-c(1:3)])[2], sep='')
-  vals_loopM$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
+  vals_loopM$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
   vals_loopM$item <- 1:nrow(vals_loopM)
   ## Now add the mirt values
   vals_loop <- merge(vals_loop, vals_loopM, by=c("item"), suffixes = c("", "_MIRT"))
