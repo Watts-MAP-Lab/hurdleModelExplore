@@ -125,7 +125,7 @@ for(i in 1){
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
   a_z = vals_loop$true_z_discrim
   b_z = vals_loop$true_z_diff
-  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
+  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
   ## NOw obtain the true reliability using the obsevred varainces
   true.score.var <- var(reps1$theta$X2)
   error.var <- var(reps1$theta$eapSev - reps1$theta$X2)
