@@ -377,7 +377,7 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
 
 hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2 ){
   ## Declare that mess of a function here
-  foo = function(x, delta = 1e-5, n = 7, col.manip = TRUE, a, b, a_z, b_z){
+  deriv_ = function(x, delta = 1e-5, n = 7, col.manip = TRUE, a, b, a_z, b_z){
     if(col.manip){
       x = cbind(x[,1],seq(from = x[,2] - delta, to = x[,2] + delta, length.out = max(2, n)))
     }else{
@@ -413,8 +413,8 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
   for(i in 1:length(a)){
     all.rows <- NULL
     for(d in 1:nrow(theta.grid)){
-      t1 = foo(theta.grid[d,],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
-      t2 = foo(theta.grid[d,],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      t1 = deriv_(theta.grid[d,],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
+      t2 = deriv_(theta.grid[d,],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
       out.row <- c(t1, t2)
       all.rows <- rbind(all.rows, out.row)
     }
