@@ -13,6 +13,7 @@ library("numDeriv")
 suppressPackageStartupMessages(library(MplusAutomation))
 library("mirt")
 library("psych")
+library("mgcv")
 
 ##### --declare-sim-params-------
 ## Sim params will need to be modified at a later time point
@@ -62,7 +63,7 @@ sv1 <- mirt(data.frame(reps1$mplusMat), model = model, itemtype = item.type.rep)
 
 loadDatFromMplus <- function(trueVals){
   ## Load Adon's custom scripts
-  source("~/GitHub/adroseHelperScripts/R/afgrHelpFunc.R")
+  #source("~/GitHub/adroseHelperScripts/R/afgrHelpFunc.R")
   ## First prep the output data directory
   all.params <- cbind(1:ncol(trueVals$responses),trueVals$varCovMat[1,2], trueVals$a_z, trueVals$b_z,
                           trueVals$a, trueVals$b)
@@ -126,10 +127,21 @@ for(i in 1){
   a_z = vals_loop$true_z_discrim
   b_z = vals_loop$true_z_diff
   vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
-  ## NOw obtain the true reliability using the obsevred varainces
+  ## NOw obtain the true reliability using the observed variances
   true.score.var <- var(reps1$theta$X2)
   error.var <- var(reps1$theta$eapSev - reps1$theta$X2)
   vals_loop$trueRel <- true.score.var / (true.score.var + error.var)
+  ## Now try to grab the true rel from these data using the GAM method?
+  tmp.dat <- reps1$theta
+  rel.sev <- mgcv::bam(eapSev ~ s(X1) + s(X2), data = tmp.dat)
+  rel.sus <- mgcv::bam(eapSus ~ s(X1) + s(X2), data = tmp.dat)
+  prms.sus <- mgcv::bam(eapSus ~ s(X1), data = tmp.dat)
+  prms.sev <- mgcv::bam(eapSev ~ s(X2), data = tmp.dat)
+  vals_loop$trueRelSevGam <- summary(rel.sev)$r.sq
+  vals_loop$trueRelSusGam <- summary(rel.sus)$r.sq
+  vals_loop$truePrmseSevGam <- summary(prms.sev)$r.sq
+  vals_loop$truePrmseSusGam <- summary(prms.sus)$r.sq
+  
   ## Now compare hurd info obtained from MIRT
   ## Estimate test info using the expand grid with factor correlations
   ## Isolate those that sum to 90
@@ -173,6 +185,18 @@ for(i in 1){
   vals_loopM$item <- 1:nrow(vals_loopM)
   ## Now add the mirt values
   vals_loop <- merge(vals_loop, vals_loopM, by=c("item"), suffixes = c("", "_MIRT"))
+  ## Now obtain the Reliability as assessed via GAM & simulation
+  simVals <- simulate_hurdle_responses(a, b, a_z, b_z, muVals = muVals, varCovMat = matrix(c(1,rhoEst,rhoEst,1), ncol=2), N = 250000)
+  ## Now perform the gam regressions
+  tmp.dat <- simVals$theta
+  rel.sev <- mgcv::bam(eapSev ~ s(X1) + s(X2), data = tmp.dat)
+  rel.sus <- mgcv::bam(eapSus ~ s(X1) + s(X2), data = tmp.dat)
+  prms.sus <- mgcv::bam(eapSus ~ s(X1), data = tmp.dat)
+  prms.sev <- mgcv::bam(eapSev ~ s(X2), data = tmp.dat)
+  vals_loop$estRelSevGam <- summary(rel.sev)$r.sq
+  vals_loop$estRelSusGam <- summary(rel.sus)$r.sq
+  vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
+  vals_loop$estPrmseSusGam <- summary(prms.sus)$r.sq
   
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")

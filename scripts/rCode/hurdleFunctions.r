@@ -1,3 +1,15 @@
+## Add a function which will efficiently identify row matches
+## This code was taken from: https://github.com/tagteam/prodlim/blob/master/R/row.match.R
+## many thanks to the tagteam group
+row.match<-  function(x, table, nomatch=NA){
+    if (inherits(table,"matrix")) table <- as.data.frame(table)
+    if (is.null(dim(x))) x <- as.data.frame(matrix(x,nrow=1))
+    cx <- do.call("paste",c(x[,,drop=FALSE],sep="\r"))
+    ct <- do.call("paste",c(table[,,drop=FALSE],sep="\r"))
+    match(cx,ct,nomatch=nomatch)
+  }
+
+
 sim2PLMod <- function(a, b, N, thetaP){
     theta <- rnorm(N, thetaP[1], thetaP[2])
 
@@ -15,30 +27,6 @@ sim2PLMod <- function(a, b, N, thetaP){
     ## Now return this
     return(output.df) 
 }
-
-## Now create a function which will sample from a multivaraite 2PL model
-## Similar to the 2 PL model, but now the discrimination parameters will be multivaraite
-## As well as the patterns from the normal distritbuion which will be used to sample data from
-sim2PLMultiMod <- function(muVals = c(0,0), varCovMat = diag(2), a = matrix(rnorm(20), ncol = 2), b = rnorm(10), N = 3000){
-    ## First create the theta values
-    theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
-
-    ## NOw create response pattern output matrix
-    responses = matrix(NA, nrow = N, ncol = length(b))
-    for(i in 1:N){
-        for(j in 1:length(b)){
-            p = sum(a[j,] * theta[i,]) - b[j]
-            p = 1 / (1 + exp(-p))
-            p= 1 - p
-            responses[i,j] = rbinom(1, 1, p)
-        }
-    }
-    ## Now write the output
-    output.df = data.frame(responses, theta)
-    ## NOw return this
-    return(output.df)
-}
-
 
 ## Quick helper function
 genDiffGRM <- function(num_items= 20, num_categories=5, min=0, max=2){
@@ -88,9 +76,8 @@ itemtraceGRM <- function(a, b, theta){
 # mu = multivaraite means (vector)
 # sigma = var cov mat (matrix)
 # N = sample size
-# k = categories
 simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL, theta=NULL){
-    ## First obtain the theta values
+  ## First obtain the theta values
   if(!is.null(N) & is.null(theta)){  
     theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
   }
@@ -103,13 +90,9 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   ## This is the susceptibility factor
   # Prep a matrix to store all of the prob of endorsements here
   responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
-  for(i in 1:N){
-      for(j in 1:length(a)){
-          #p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
-          p_z = 1 - exp(a_z[j] * (theta[i, 1] - b_z[j])) / (1 + exp(a_z[j] * (theta[i, 1] - b_z[j])))
-          p_1 = 1 - p_z
-          responseProb2PL[i,j] = p_1
-      }
+  for(j in 1:length(a)){
+      p_1 = plogis(q = theta[,1], scale = a_z[j], location = b_z[j])
+      responseProb2PL[,j] = p_1
   }
   ## Now go through and obtain the response prob from the GRM portion
   initVector <- rep(NA, (N*numItems*(num_categories-1)))
@@ -119,30 +102,38 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
       aj <- a[j]  # Discrimination parameter for item j
       bj <- b[j,]  # Threshold parameters for item j
       # Loop through examinees
-      for (i in 1:N) {
-          category_probs <- itemtraceGRM(aj, bj, theta[i,2])  
-          # Generate response based on category probabilities
-          for(k in 1:num_categories-1){
-              responseProbGRM[i, j,k] <- category_probs[k]
-          }
+      for (i in 1:(num_categories-1)) {
+        if(i == 1){
+          responseProbGRM[,j,i] = 1 - plogis(theta[,2], location = bj[1], scale = aj)
+        }
+        if(i == (num_categories-1)){
+          responseProbGRM[,j,i] =  plogis(theta[,2], location = bj[i-1], scale = aj)
+        }
+        else if (i != 1 & i != (num_categories-1)){
+          responseProbGRM[,j,i] = plogis(theta[,2], location = bj[i-1], scale = aj) - plogis(theta[,2], location = bj[i], scale = aj)
+        }
       }
   }
+
   ## Now I need to turn this into response categories
   responses = matrix(NA, nrow = N, ncol = numItems)
-  for(i in 1:N){
-      for( j in 1:numItems){
-          ## Create a vector of probabilities
-          tmp_probs <- rep(NA, num_categories)
-          for(k in 1:num_categories){
-              if(k == 1){
-                  tmp_probs[k] <- 1 - responseProb2PL[i,j]
-              }else{
-                  tmp_probs[k] <- ((responseProb2PL[i,j])) * responseProbGRM[i,j,k-1]
-              }
+  tmp_probs = array(NA, c(N, num_categories, numItems))
+  for( j in 1:numItems){
+      for(k in 1:num_categories){
+          if(k == 1){
+              tmp_probs[,k,j] <- 1 - responseProb2PL[,j]
+          }else{
+              tmp_probs[,k,j] <- ((responseProb2PL[,j])) * responseProbGRM[,j,k-1]
           }
-          responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
       }
   }
+  ## Now sample these responses
+  for(j in 1:numItems){
+    responses[,j] <- apply(tmp_probs[,,j], 1, function(x) {
+      sample(0:(num_categories-1), size = 1, prob = x)
+    })
+  }
+  
   ## Now calculate the cross tabs
   responses2 <- data.frame(responses)
   crosstab <- responses2 %>%
@@ -168,7 +159,7 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   colnames(matrix.mplus) <- c(col.names.sus, col.names.sev)
   ## Now add the true theta estimate using the real hurdle parameters
   ## Create any global vars needed
-  qpoints <- expand.grid(seq(-4, 4, .05), seq(-4, 4, .05))
+  qpoints <- expand.grid(seq(-6, 6, .2), seq(-6, 6, .2))
   prior <- mvtnorm::dmvnorm(qpoints, muVals, varCovMat)
   itemtrace = trace.line.pts(a, b, a_z, b_z, qpoints)
   theta = data.frame(theta)
@@ -176,21 +167,29 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   theta$eapSev <- NA
   theta$mapSus <- NA
   theta$mapSev <- NA
-  for(i in 1:N){
-    ## Obtain the score for this individual
-    pattern <- responses2[i,]
-    lhood <- score(pattern, itemtrace, qpoints)
-    eap2PL_Hurdle <- sum(lhood*prior*qpoints$Var1)/sum(lhood*prior)
-    eapGRM_Hurdle <- sum(lhood*prior*qpoints$Var2)/sum(lhood*prior)
-    theta$eapSus[i] <- eap2PL_Hurdle
-    theta$eapSev[i] <- eapGRM_Hurdle
+  ## Now loop through every response option as specified in the crosstab
+  ## Make a progress bar
+  pb <- txtProgressBar(min = 0, max = nrow(crosstab), style = 3) # style = 3 for a full bar
+  for(i in 1:nrow(crosstab)){
+    pattern <- crosstab[i,1:ncol(crosstab)-1] ## pattern to score
+    lhood <- score(pattern, itemtrace, qpoints) ## lik of response 
+    eap2PL_Hurdle <- sum(lhood*prior*qpoints$Var1)/sum(lhood*prior) ## take sum over all values for 2PL model
+    eapGRM_Hurdle <- sum(lhood*prior*qpoints$Var2)/sum(lhood*prior) ## same for GRM model
     ## Now do the MAP estimate as well
-    map2PL_Hurdle <- qpoints[which.max(lhood*prior),1]
-    mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2]
-    theta$mapSus[i] <- map2PL_Hurdle
-    theta$mapSev[i] <- mapGRM_Hurdle
-    
+    map2PL_Hurdle <- qpoints[which.max(lhood*prior),1] ## take the median value here
+    mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2] ## same for GRM
+    ## Now put these estimates into the theta data frame
+    ## First identify which rows in responses2 have these same response patterns
+    #index <- apply(responses2, 1, function(a) apply(pattern, 1, function(b) all(a==b))) ## for some reason this line of code is very slow
+    index <- which(row.match(responses2, pattern, nomatch = 0)==1)
+    ## Now assign values
+    theta$eapSus[index] <- eap2PL_Hurdle
+    theta$eapSev[index] <- eapGRM_Hurdle
+    theta$mapSus[index] <- map2PL_Hurdle
+    theta$mapSev[index] <- mapGRM_Hurdle
+    setTxtProgressBar(pb, i)
   }
+
   ## Now return everything
   out.data = list(responses = responses, theta = theta, tabs = crosstab,
   a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
@@ -302,6 +301,8 @@ trace.line.pts <- function(a, b, a_z, b_z, theta){
   }
   return(itemtrace)
 }
+
+
 score <- function(response_pattern, itemtrace, qPoints){
     lhood <- rep(1, dim(qPoints)[1])
     nitems <- dim(itemtrace[[1]])[1]
@@ -321,113 +322,131 @@ dmnorm <- function(mu, sigma, x){
   dmn
 }
 
-estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .1),seq(-7, 7, .1)), muVals = c(0,0),rhoVal = .2 ){
-  ## Estimate pre mirt model
-  est.data <- simVals$mplusMat[,grep(pattern = "Sev", x = names(simVals$mplusMat))]
-  if(length(unique(unlist(lapply(apply(est.data, 2,table), length))))>1){
-    ## Insert some artificial response into the data
-    ## First identify which column has the issue
-    unique.resp.vals <- lapply(apply(est.data, 2,table), length)
-    ## Now identify columns
-    inject.vals <- which.min(unique.resp.vals)
-    n.cats <- dim(b)[2]+1
-    for(i in inject.vals){
-      est.data[,i] <- sample(1:n.cats, size = nrow(est.data), replace=TRUE)
+trace.line.pts.grm.expr <- function(a, b, var = "t") {
+  nitems <- length(a)
+  K <- ncol(b) + 1
+  t_sym <- as.name(var)
+  
+  # Each category k contains an nitems x 1 matrix of expressions (one per item)
+  expr_list  <- vector("list", K)
+  dexpr_list <- vector("list", K)
+  
+  for (k in 1:K) {
+    mat_expr  <- matrix(vector("list", nitems), nrow = nitems, ncol = 1)
+    mat_dexpr <- matrix(vector("list", nitems), nrow = nitems, ncol = 1)
+    
+    for (j in 1:nitems) {
+      if (k == 1) {
+        # P(Y=1) = 1 - s(a*(t - b1))
+        expr <- substitute(
+          1 - exp(aj*(tt - bj1)) / (1 + exp(aj*(tt - bj1))),
+          list(aj = a[j], bj1 = b[j, 1], tt = t_sym)
+        )
+      } else if (k < K) {
+        # P(Y=k) = s(a*(t - b_{k-1})) - s(a*(t - b_k))
+        expr <- substitute(
+          exp(aj*(tt - bjm1))/(1 + exp(aj*(tt - bjm1))) -
+            exp(aj*(tt - bj ))/(1 + exp(aj*(tt - bj ))),
+          list(aj = a[j], bjm1 = b[j, k - 1], bj = b[j, k], tt = t_sym)
+        )
+      } else {
+        # P(Y=K) = s(a*(t - b_{K-1}))
+        expr <- substitute(
+          exp(aj*(tt - bjm1)) / (1 + exp(aj*(tt - bjm1))),
+          list(aj = a[j], bjm1 = b[j, K - 1], tt = t_sym)
+        )
+      }
+      
+      mat_expr[j, 1]  <- list(expr)
+      # Derivative wrt t (symbol var)
+      mat_dexpr[j, 1] <- list(D(expr, var))
     }
+    
+    expr_list[[k]]  <- mat_expr
+    dexpr_list[[k]] <- mat_dexpr
   }
-  sv <- suppressWarnings(mirt(data=est.data, 1,itemtype= 'graded', pars = 'values'))
-  ## NOw organize true and est vals
-  slopeInt <- matrix(0, length(a), dim(b)[2] + 1)
-  ## Now make a dataframe of all of the discrim and diff values
-  input.vals <- data.frame(cbind(a, b))
-  for(i in 1:length(a)){
-    input.vector <- unlist(as.vector(input.vals[i,]))
-    slopeInt[i, ] <- traditional2mirt(input.vector, cls='graded', ncat=dim(b)[2]+1)
-  }
-  ## Now replace sv with these mirt values
-  sv$value[sv$name == 'a1'] <- slopeInt[,1]
-  ## Now do this for the rest of the difficulty values
-  d.values <- grep(pattern="^d", x = names(table(sv$name)), value = TRUE)
-  index.val <- 2
-  for(i in d.values){
-    sv$value[sv$name == i] <- slopeInt[,index.val]
-    index.val <- index.val + 1
-  }
-  sv$est <- FALSE
-  mod <- suppressWarnings(mirt(est.data, 1, pars=sv))
-  ## Now obtain all of the information values
-  vals.2pl <- trace.line.pts.2PL(a_z = a_z, b_z = b_z, theta = thetaVals)
-  item.info.2pl <- vals.2pl[[1]] * vals.2pl[[2]] * (a_z^2)
-  test.info.2pl <- apply(item.info.2pl, 2, sum)
-  ## Now obtain the grm information here
-  vals.grm <- testinfo(mod, Theta = thetaVals[,2],individual=TRUE)
-  ## Now multiply these?
-  item.info <- matrix(0, nrow=dim(thetaVals)[1], ncol = length(a))
-  for(i in 1:length(a)){
-    item.info[,i] <- test.info.2pl * vals.grm[,i]
-  }
-  test.info <- apply(item.info, 1, sum)
-  ## Now multiply by prob of theta value
-  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
-  #test.info.weight <- test.info * dmnorm(muVals, varCovMat, thetaVals)
-  ## Now estimate the rel with these info functions
-  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dmnorm(muVals, varCovMat, thetaVals))))
-  return(out.rel)
+  
+  list(expr = expr_list, dexpr = dexpr_list, var = var)
 }
 
-hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2 ){
-  ## Declare that mess of a function here
-  deriv_ = function(x, delta = 1e-5, n = 7, col.manip = TRUE, a, b, a_z, b_z){
-    if(col.manip){
-      x = cbind(x[,1],seq(from = x[,2] - delta, to = x[,2] + delta, length.out = max(2, n)))
-    }else{
-      x = cbind(seq(from = x[,1] - delta, to = x[,1] + delta, length.out = max(2, n)),x[,2])
+# Helper: evaluate all expressions at numeric t values (vector) and return an array
+# Result dims: (nitems) x (length(t)) x (K categories)
+eval.trace.expr <- function(expr_obj, tvals) {
+  expr_list <- expr_obj$expr
+  var <- expr_obj$var
+  K <- length(expr_list)
+  nitems <- nrow(expr_list[[1]])
+  
+  out <- array(NA_real_, dim = c(nitems, length(tvals), K))
+  for (k in 1:K) {
+    for (j in 1:nitems) {
+      f <- expr_list[[k]][j, 1][[1]]
+      out[j, , k] <- vapply(tvals, function(tv) eval(f, list2env(setNames(list(tv), var))), numeric(1))
     }
-    y = trace.line.pts(a = a, a_z = a_z, b_z = b_z,b = matrix(b, nrow = 1), x)
-    ## Now go through each of these and return the deriv at each value
-    y_prime = rep(NA, length(y)-1)
-    for(i in 2:length(y)){
-      if(!col.manip){
-        y_prime[i] <- mean(diff(y[[i]][1,])/diff(c(x[,1]))) 
-      }else{
-        y_prime[i] <- mean(diff(y[[i]][1,])/diff(c(x[,2])))  
-      }
-    }
-    ## Turn NaN vals into 0
-    y_prime[is.na(y_prime)] <- 0
-    ## Turn Inf values into 0 here too
-    y_prime[y_prime==Inf] <- 0
-    y_prime_sq <- y_prime^2
-    ## Now take ratio
-    ## First isolate probs
-    middle.index <- ceiling(n/2)
-    probs = unlist(lapply(y, function(x) x[middle.index]))
-    y_prime_sq_div = y_prime_sq / probs
+  }
+  out
+}
 
-    ## Now sum these
-    out.info <- sum(y_prime_sq_div)
-    return(out.info)
-  }
-  ## Now estimate the info vals here
-  item.info <- matrix(NA, nrow=nrow(theta.grid), ncol=length(a))
-  for(i in 1:length(a)){
-    all.rows <- NULL
-    for(d in 1:nrow(theta.grid)){
-      t1 = deriv_(theta.grid[d,],col.manip = FALSE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
-      t2 = deriv_(theta.grid[d,],col.manip = TRUE, a = a[i], b = b[i,], a_z = a_z[i], b_z = b_z[i])
-      out.row <- c(t1, t2)
-      all.rows <- rbind(all.rows, out.row)
+# Helper: evaluate all derivative expressions at numeric t values (vector) and return an array
+# Result dims: (nitems) x (length(t)) x (K categories)
+eval.dtrace.expr <- function(expr_obj, tvals) {
+  dexpr_list <- expr_obj$dexpr
+  var <- expr_obj$var
+  K <- length(dexpr_list)
+  nitems <- nrow(dexpr_list[[1]])
+  
+  out <- array(NA_real_, dim = c(nitems, length(tvals), K))
+  for (k in 1:K) {
+    for (j in 1:nitems) {
+      f <- dexpr_list[[k]][j, 1][[1]]
+      out[j, , k] <- vapply(tvals, function(tv) eval(f, list2env(setNames(list(tv), var))), numeric(1))
     }
-    item.info[,i] <- rowSums(all.rows)
   }
-  test.info <- rowSums(item.info)
-  test.info[is.na(test.info)] <- 0
+  out
+}
+
+hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
+  ## I need to estimate the 2PL probs of the function & the information function from the GRM portion
+  ## First obtain the 2PL probabilities
+  theta2pl_probs_one = trace.line.pts.2PL(a_z, b_z, theta.grid)[[2]]
+  thetagrm_probs_two = trace.line.pts.grm(a, b, theta.grid)
+  ## Now obtain the derivatives for the GRM model
+  ex <- trace.line.pts.grm.expr(a, b, var = "t")
+  dPdt <- eval.dtrace.expr(ex, theta.grid[,2])
+  ## Now square these values
+  dPdtSQ <- dPdt^2 
+  
+  ## Now obtain the info within each response option
+  out.info <- thetagrm_probs_two
+  for(i in 1:length(out.info)){
+    out.info[[i]] <- dPdtSQ[,,i] / thetagrm_probs_two[[i]]
+    out.info[[i]] <- out.info[[i]] * theta2pl_probs_one[[i]]
+  }
+  ## Now add across these
+  out.info.add <- out.info[[1]]
+  for(i in 2:length(out.info)){
+    out.info.add <- out.info.add + out.info[[i]]
+  }
+  
+  ## Check if the MIRT model was provided
+  if(!is.null(mirtMod)){
+    ## Now obtain the MIRT model item information
+    out.info.add <- mirt::testinfo(mirtMod, Theta = theta.grid, degrees=c(90,0), individual = TRUE)
+    ## Now isolate variables of interest
+    out.info.add <- out.info.add[,-c(1:length(a))]
+    out.info.add <- t(out.info.add)
+    out.info.add <- out.info.add * theta2pl_probs_one
+  }
+  
+  ## Now take the sum of these
+  out.info.sum <- colSums(out.info.add)
+  out.info.sum.inv <- out.info.sum^-1
   varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
   ## Now estimate the rel with these info functions
-  out.rel <- 1 / (1 + (1 / weighted.mean(test.info, dmnorm(muVals, varCovMat, theta.grid))))
+  out.rel <- 1 / (1 + weighted.mean(out.info.sum.inv, dmnorm(muVals, varCovMat, theta.grid)))
   out.list = list(out.rel = out.rel,
-                  test.info = test.info,
-                  item.info = item.info)
+                  test.info = out.info.sum,
+                  item.info = out.info)
   return(out.list)
 }
 
@@ -495,7 +514,7 @@ estHurdleRel <- function(simVals, a, b, a_z, b_z, thetaVals = expand.grid(seq(-7
   varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
   #test.info.weight <- test.info * dmnorm(muVals, varCovMat, thetaVals)
   ## Now estimate the rel with these info functions
-  out.rel <- 1 / (1 + (1 / weighted.mean(test.info.combined, dmnorm(muVals, varCovMat, thetaVals))))
+  out.rel <- 1 / (1+(1/weighted.mean(test.info.combined, dmnorm(muVals, varCovMat, thetaVals))))
   return(out.rel)
 }
 
@@ -564,4 +583,10 @@ estHurdleRelGen <- function(a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .
   ## Now estimate the rel with these info functions
   out.rel <- 1 / (1 + (1 / weighted.mean(test.info.combined, dmnorm(muVals, varCovMat, thetaVals))))
   return(out.rel)
+}
+
+
+## Now make a function which will obtain the reliability using a simulation
+sim.based.rel <- function(a, b, a_z, b_z, rhoVal, muVals, nSimSamp = 1000, nsim = 100){
+  
 }
