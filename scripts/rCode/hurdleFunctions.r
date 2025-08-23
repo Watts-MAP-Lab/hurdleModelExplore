@@ -165,8 +165,8 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   theta = data.frame(theta)
   theta$eapSus <- NA
   theta$eapSev <- NA
-  theta$mapSus <- NA
-  theta$mapSev <- NA
+  #theta$mapSus <- NA
+  #theta$mapSev <- NA
   ## Now loop through every response option as specified in the crosstab
   ## Make a progress bar
   pb <- txtProgressBar(min = 0, max = nrow(crosstab), style = 3) # style = 3 for a full bar
@@ -176,8 +176,8 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
     eap2PL_Hurdle <- sum(lhood*prior*qpoints$Var1)/sum(lhood*prior) ## take sum over all values for 2PL model
     eapGRM_Hurdle <- sum(lhood*prior*qpoints$Var2)/sum(lhood*prior) ## same for GRM model
     ## Now do the MAP estimate as well
-    map2PL_Hurdle <- qpoints[which.max(lhood*prior),1] ## take the median value here
-    mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2] ## same for GRM
+    #map2PL_Hurdle <- qpoints[which.max(lhood*prior),1] ## take the median value here
+    #mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2] ## same for GRM
     ## Now put these estimates into the theta data frame
     ## First identify which rows in responses2 have these same response patterns
     #index <- apply(responses2, 1, function(a) apply(pattern, 1, function(b) all(a==b))) ## for some reason this line of code is very slow
@@ -185,8 +185,8 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
     ## Now assign values
     theta$eapSus[index] <- eap2PL_Hurdle
     theta$eapSev[index] <- eapGRM_Hurdle
-    theta$mapSus[index] <- map2PL_Hurdle
-    theta$mapSev[index] <- mapGRM_Hurdle
+    #theta$mapSus[index] <- map2PL_Hurdle
+    #theta$mapSev[index] <- mapGRM_Hurdle
     setTxtProgressBar(pb, i)
   }
 
@@ -195,6 +195,212 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
   return(out.data)
 }
+
+simulate_hurdle_responses_fast <- function(
+    a, b, a_z, b_z, muVals, varCovMat,
+    N = NULL, theta = NULL,
+    # scoring grid cache (optional)
+    qpoints = NULL, prior = NULL, itemtrace = NULL,
+    # control
+    parallel = FALSE, progress = FALSE, grid_seq = seq(-6, 6, by = 0.2)
+){
+  # Dependencies
+  requireNamespace("MASS")
+  requireNamespace("mvtnorm")
+  requireNamespace("data.table")
+  requireNamespace("matrixStats")
+  if (parallel) requireNamespace("future.apply")
+  
+  # 1) Latent traits
+  if (!is.null(N) && is.null(theta)) {
+    theta <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
+  }
+  if (!is.null(theta) && is.null(N)) {
+    N <- nrow(theta)
+  }
+  if (is.null(N) || is.null(theta)) stop("Provide either N or theta.")
+  
+  theta <- as.matrix(theta)
+  if (ncol(theta) != 2) stop("theta must be N x 2 (susceptibility, severity).")
+  
+  # 2) Basic dims
+  J <- length(a)
+  if (length(a_z) != J || length(b_z) != J) stop("a_z and b_z must be length J.")
+  if (!is.matrix(b) || nrow(b) != J) stop("b must be a J x m matrix.")
+  m <- ncol(b)               # thresholds per item
+  num_categories <- m + 2    # 0 for non-endorse + (m+1) positive categories
+  
+  # 3) Vectorized susceptibility (2PL) probabilities: P(endorse)
+  #    plogis supports vectorized location/scale; build N x J matrices
+  T1 <- matrix(theta[, 1], nrow = N, ncol = J)
+  Bz <- matrix(rep(b_z, each = N), nrow = N, ncol = J)
+  Az <- matrix(rep(a_z, each = N), nrow = N, ncol = J)
+  p_endorse <- plogis(q = T1, location = Bz, scale = Az)  # N x J
+  
+  # 4) Draw responses per item without building a big 3D array
+  responses <- matrix(NA_integer_, nrow = N, ncol = J)
+  
+  # Handy local function for fast categorical sampling from row-wise probabilities
+  # probs: N x K, rows sum to 1
+  .sample_rowwise_cat <- function(probs) {
+    # cumulative probs
+    cp <- matrixStats::rowCumsums(probs)
+    # one uniform per row
+    u <- stats::runif(nrow(cp))
+    # first category where cp >= u
+    idx <- max.col(cp >= u, ties.method = "first")
+    # idx in 1..K; we return 0..K-1
+    idx - 1L
+  }
+  
+  # 5) GRM per item (vectorized inside item), combine with hurdle, sample
+  T2 <- theta[, 2]
+  for (j in seq_len(J)) {
+    aj <- a[j]
+    bj <- b[j, ]  # length m
+    # cumulative probabilities for graded response model
+    # C_k = P(Y >= k | theta2) = plogis(theta2, location = bj[k], scale = aj)
+    C <- plogis(outer(T2, bj, FUN = function(x, y) x), location = matrix(bj, nrow = N, ncol = m, byrow = TRUE), scale = aj)
+    # category probs (positive categories 1..m+1)
+    # cat1 = 1 - C1; cat_k = C_{k-1} - C_k (2..m); cat_{m+1} = C_m
+    if (m == 1L) {
+      P_pos <- cbind(1 - C[, 1], C[, 1, drop = TRUE])
+    } else {
+      mid <- C[, 1:(m - 1), drop = FALSE] - C[, 2:m, drop = FALSE]
+      P_pos <- cbind(1 - C[, 1, drop = TRUE], mid, C[, m, drop = TRUE])
+    }
+    # hurdle combine with susceptibility
+    # full categories: 0 (non-endorse) + 1..(m+1) positive
+    probs <- cbind(1 - p_endorse[, j], p_endorse[, j] * P_pos)  # N x (m+2)
+    # numeric safety: small negative due to floating errors
+    probs[probs < 0] <- 0
+    rs <- rowSums(probs)
+    # normalize just in case of rounding; mostly redundant but safe
+    probs <- probs / rs
+    # sample responses for item j
+    responses[, j] <- .sample_rowwise_cat(probs)
+  }
+  
+  # 6) Cross-tab of patterns and mapping using data.table
+  DT <- data.table::as.data.table(responses)
+  # Count unique patterns
+  tabs <- DT[, .N, by = names(DT)]
+  data.table::setnames(tabs, "N", "Count")
+  # Attach pattern id to tabs
+  tabs[, pattern_id := .I]
+  # Map each row to its pattern_id via keyed join
+  data.table::setkeyv(tabs, names(DT))
+  DT[, pattern_id := tabs[DT, on = names(DT), x.pattern_id]]
+  pattern_id <- DT[["pattern_id"]]
+  
+  # 7) Mplus matrices (vectorized)
+  matrix.mplus1 <- (responses > 0L) + 0L
+  matrix.mplus2 <- responses
+  matrix.mplus2[matrix.mplus2 == 0L] <- NA_integer_
+  matrix.mplus <- data.frame(
+    matrix.mplus1,
+    matrix.mplus2,
+    check.names = FALSE
+  )
+  colnames(matrix.mplus) <- c(
+    paste0("Sus_", seq_len(J)),
+    paste0("Sev_", seq_len(J))
+  )
+  
+  # 8) Scoring setup (EAP/MAP via grid), cached if provided
+  if (is.null(qpoints)) {
+    qpoints <- expand.grid(Var1 = grid_seq, Var2 = grid_seq)
+  } else {
+    # ensure names
+    if (!all(c("Var1", "Var2") %in% names(qpoints))) {
+      colnames(qpoints) <- c("Var1", "Var2")
+    }
+  }
+  if (is.null(prior)) {
+    prior <- mvtnorm::dmvnorm(as.matrix(qpoints), mean = muVals, sigma = varCovMat)
+  }
+  if (is.null(itemtrace)) {
+    # user-supplied function must exist
+    if (!exists("trace.line.pts", mode = "function")) {
+      stop("trace.line.pts function not found. Provide itemtrace or define the function.")
+    }
+    itemtrace <- trace.line.pts(a, b, a_z, b_z, qpoints)
+  }
+  
+  # Prepare result holders for theta + EAP/MAP
+  theta_df <- data.frame(
+    theta1 = theta[, 1],
+    theta2 = theta[, 2]
+  )
+  theta_df$eapSus <- NA_real_
+  theta_df$eapSev <- NA_real_
+  theta_df$mapSus <- NA_real_
+  theta_df$mapSev <- NA_real_
+  
+  # 9) Build representative patterns and index sets once
+  item_cols <- names(DT)[seq_len(J)]
+  # Split row indices by pattern_id
+  idx_by_pat <- split(seq_len(N), pattern_id)
+  # Representative pattern per id as integer vector
+  reps <- lapply(idx_by_pat, function(idx) as.integer(responses[idx[1], ]))
+  
+  # 10) Score patterns: sequential or parallel
+  score_one <- function(p) {
+    # p is integer vector length J
+    # Expected: score(pattern, itemtrace, qpoints) returns likelihood over grid (vector length nrow(qpoints))
+    lhood <- score(p, itemtrace, qpoints)
+    post <- lhood * prior
+    Z <- sum(post)
+
+    # EAPs
+    eap1 <- sum(post * qpoints$Var1) / Z
+    eap2 <- sum(post * qpoints$Var2) / Z
+    # MAP (grid argmax)
+    k <- which.max(post)
+    map1 <- qpoints$Var1[k]
+    map2 <- qpoints$Var2[k]
+    c(eap1 = eap1, eap2 = eap2, map1 = map1, map2 = map2)
+  }
+  
+  if (parallel) {
+    # parallel over patterns
+    # user must set a plan() beforehand; otherwise future.apply uses sequential
+    stats_list <- future.apply::future_lapply(reps, score_one, future.seed = TRUE)
+  } else {
+    if (progress) {
+      pb <- utils::txtProgressBar(min = 0, max = length(reps), style = 3)
+    }
+    stats_list <- vector("list", length(reps))
+    for (i in seq_along(reps)) {
+      stats_list[[i]] <- score_one(reps[[i]])
+      if (progress) utils::setTxtProgressBar(pb, i)
+    }
+    if (progress) close(pb)
+  }
+  
+  # 11) Assign scores back to all rows per pattern
+  for (i in seq_along(idx_by_pat)) {
+    idx <- idx_by_pat[[i]]
+    s <- stats_list[[i]]
+    theta_df$eapSus[idx] <- s[["eap1"]]
+    theta_df$eapSev[idx] <- s[["eap2"]]
+    theta_df$mapSus[idx] <- s[["map1"]]
+    theta_df$mapSev[idx] <- s[["map2"]]
+  }
+  
+  # 12) Return
+  list(
+    responses = responses,
+    theta = theta_df,
+    tabs = as.data.frame(tabs),
+    a = a, b = b, a_z = a_z, b_z = b_z,
+    muVals = muVals, varCovMat = varCovMat,
+    mplusMat = matrix.mplus,
+    qpoints = qpoints, prior = prior, itemtrace = itemtrace
+  )
+}
+
+
 
 ## Now take a make a function which will take the output of the julia function and return the parameters for the
 ## 2PL model, GRM model, the varCov mat, as well as theta estimates

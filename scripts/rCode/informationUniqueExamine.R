@@ -47,7 +47,10 @@ varCovMat = matrix(c(1,rho,rho,1), ncol=2)
 N = all.sim.vals$n[seedVal]
 ## Now generate theta here
 theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
-reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
+#reps1 = system.time(simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta))
+#reps1f = system.time(simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1))))
+#reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
+reps1 = simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .2), seq(-6, 6, .2)))
 
 ## Grab the MIRT estimates here
 model <- "
@@ -128,15 +131,15 @@ for(i in 1){
   b_z = vals_loop$true_z_diff
   vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
   ## NOw obtain the true reliability using the observed variances
-  true.score.var <- var(reps1$theta$X2)
-  error.var <- var(reps1$theta$eapSev - reps1$theta$X2)
+  true.score.var <- var(reps1$theta$theta2)
+  error.var <- var(reps1$theta$eapSev - reps1$theta$theta2)
   vals_loop$trueRel <- true.score.var / (true.score.var + error.var)
   ## Now try to grab the true rel from these data using the GAM method?
   tmp.dat <- reps1$theta
-  rel.sev <- mgcv::bam(eapSev ~ s(X1) + s(X2), data = tmp.dat)
-  rel.sus <- mgcv::bam(eapSus ~ s(X1) + s(X2), data = tmp.dat)
-  prms.sus <- mgcv::bam(eapSus ~ s(X1), data = tmp.dat)
-  prms.sev <- mgcv::bam(eapSev ~ s(X2), data = tmp.dat)
+  rel.sev <- mgcv::bam(eapSev ~ s(theta1) + s(theta2), data = tmp.dat)
+  rel.sus <- mgcv::bam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
+  prms.sus <- mgcv::bam(eapSus ~ s(theta1), data = tmp.dat)
+  prms.sev <- mgcv::bam(eapSev ~ s(theta2), data = tmp.dat)
   vals_loop$trueRelSevGam <- summary(rel.sev)$r.sq
   vals_loop$trueRelSusGam <- summary(rel.sus)$r.sq
   vals_loop$truePrmseSevGam <- summary(prms.sev)$r.sq
@@ -186,13 +189,14 @@ for(i in 1){
   ## Now add the mirt values
   vals_loop <- merge(vals_loop, vals_loopM, by=c("item"), suffixes = c("", "_MIRT"))
   ## Now obtain the Reliability as assessed via GAM & simulation
-  simVals <- simulate_hurdle_responses(a, b, a_z, b_z, muVals = muVals, varCovMat = matrix(c(1,rhoEst,rhoEst,1), ncol=2), N = 250000)
+  simVals <- simulate_hurdle_responses_fast(a, b, a_z, b_z, muVals = muVals, varCovMat = matrix(c(1,rhoEst,rhoEst,1), ncol=2), N = 150000, grid_seq = seq(-6, 6, .1))
+
   ## Now perform the gam regressions
   tmp.dat <- simVals$theta
-  rel.sev <- mgcv::bam(eapSev ~ s(X1) + s(X2), data = tmp.dat)
-  rel.sus <- mgcv::bam(eapSus ~ s(X1) + s(X2), data = tmp.dat)
-  prms.sus <- mgcv::bam(eapSus ~ s(X1), data = tmp.dat)
-  prms.sev <- mgcv::bam(eapSev ~ s(X2), data = tmp.dat)
+  rel.sev <- mgcv::bam(eapSev ~ s(theta1) + s(theta2), data = tmp.dat)
+  rel.sus <- mgcv::bam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
+  prms.sus <- mgcv::bam(eapSus ~ s(theta1), data = tmp.dat)
+  prms.sev <- mgcv::bam(eapSev ~ s(theta2), data = tmp.dat)
   vals_loop$estRelSevGam <- summary(rel.sev)$r.sq
   vals_loop$estRelSusGam <- summary(rel.sus)$r.sq
   vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
