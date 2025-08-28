@@ -150,9 +150,9 @@ for(i in 1){
   ## Estimate test info using the expand grid with factor correlations
   ## Isolate those that sum to 90
   t2 <- mirt::testinfo(sv1, Theta = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), degrees = c(0,90))
-  vals_loop$mirtHurdleInfo0_90 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(0,90)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
-  vals_loop$mirtHurdleInfo45_45 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(45,45)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
-  vals_loop$mirtHurdleInfo90_0 <-  1 / (1 + (1 / weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(90,0)), dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
+  vals_loop$mirtHurdleInfo0_90 <-  1 / (1 + (weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(0,90))^-1, dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
+  vals_loop$mirtHurdleInfo45_45 <-  1 / (1 + (weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(45,45))^-1, dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
+  vals_loop$mirtHurdleInfo90_0 <-  1 / (1 + (weighted.mean(testinfo(sv1, Theta=expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), degrees = c(90,0))^-1, dmnorm(mu = muVals, sigma = varCovMat, x = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1))))))
   
   ## Now organize the MIRT values here
   mirt.coef <- coef(mod_loopM, IRTpars=TRUE)
@@ -205,13 +205,13 @@ for(i in 1){
   
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
-  vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-6, 6, .1)), dnorm(seq(-6, 6, .1)))))
+  vals_loop$grmRel <-  1 / (1 + (weighted.mean(testinfo(mod, Theta=seq(-6, 6, .1))^-1, dnorm(seq(-6, 6, .1)))))
   # mod <- mirt::mirt(data.frame(rep_loop$responses[-rm.index,]), 1, itemtype = "graded")
   # vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   ## Now do the same for only the >0 values
   iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
   mod.rm <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
-  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod.rm, Theta=seq(-6, 6, .1)), dnorm(seq(-6, 6, .1)))))
+  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (weighted.mean(testinfo(mod.rm, Theta=seq(-6, 6, .1)^-1), dnorm(seq(-6, 6, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 
