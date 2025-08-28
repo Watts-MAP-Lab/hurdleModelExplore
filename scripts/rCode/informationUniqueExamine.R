@@ -202,6 +202,9 @@ for(i in 1){
   # vals_loop$estRelSusGam <- summary(rel.sus)$r.sq
   # vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
   # vals_loop$estPrmseSusGam <- summary(prms.sus)$r.sq
+  ## Now obtain these using the MIRT methods
+  
+  
   
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
