@@ -46,11 +46,12 @@ rho <- all.sim.vals$facCor[seedVal]
 varCovMat = matrix(c(1,rho,rho,1), ncol=2)
 N = all.sim.vals$n[seedVal]
 ## Now generate theta here
+#theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
 theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
 #reps1 = system.time(simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta))
 #reps1f = system.time(simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1))))
-#reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
-reps1 = simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .2), seq(-6, 6, .2)))
+reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
+#reps1 = simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .2), seq(-6, 6, .2)))
 
 ## Grab the MIRT estimates here
 model <- "
@@ -129,17 +130,17 @@ for(i in 1){
   b = data.matrix(data.frame(vals_loop[,grep(pattern = "true_grm_diff", x = names(vals_loop))]))
   a_z = vals_loop$true_z_discrim
   b_z = vals_loop$true_z_diff
-  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .1), seq(-5, 5, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
+  vals_loop$trueHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rho)$out.rel
   ## NOw obtain the true reliability using the observed variances
   true.score.var <- var(reps1$theta$theta2)
   error.var <- var(reps1$theta$eapSev - reps1$theta$theta2)
   vals_loop$trueRel <- true.score.var / (true.score.var + error.var)
   ## Now try to grab the true rel from these data using the GAM method?
   tmp.dat <- reps1$theta
-  rel.sev <- mgcv::bam(eapSev ~ s(theta1) + s(theta2), data = tmp.dat)
-  rel.sus <- mgcv::bam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
-  prms.sus <- mgcv::bam(eapSus ~ s(theta1), data = tmp.dat)
-  prms.sev <- mgcv::bam(eapSev ~ s(theta2), data = tmp.dat)
+  rel.sev <- mgcv::gam(eapSev ~ s(theta1, k = 20) + s(theta2, k = 20), data = tmp.dat, REML=TRUE)
+  rel.sus <- mgcv::gam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
+  prms.sus <- mgcv::gam(eapSus ~ s(theta1), data = tmp.dat)
+  prms.sev <- mgcv::gam(eapSev ~ s(theta2), data = tmp.dat)
   vals_loop$trueRelSevGam <- summary(rel.sev)$r.sq
   vals_loop$trueRelSusGam <- summary(rel.sus)$r.sq
   vals_loop$truePrmseSevGam <- summary(prms.sev)$r.sq
@@ -181,36 +182,36 @@ for(i in 1){
   b <- t(bind_rows(b))
   #b <- t(apply(b, 1, function(x) sort(x, decreasing = FALSE)))
   rhoEst <- unique(mirt.coef$GroupPars["par","COV_21"])
-  vals_loopM <- bind_cols(a_z, b_z,a, b)
-  colnames(vals_loopM)[1:3] <- c("est_z_discrim", "est_z_diff", "est_grm_discrim")
-  colnames(vals_loopM)[-c(1:3)] <- paste("est_grm_diff_", 1:dim(vals_loopM[,-c(1:3)])[2], sep='')
-  vals_loopM$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-5, 5, .2), seq(-5, 5, .2)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
+  vals_loopM <- bind_cols(rhoEst,a_z, b_z,a, b)
+  colnames(vals_loopM)[1:4] <- c("rhoEst","est_z_discrim", "est_z_diff", "est_grm_discrim")
+  colnames(vals_loopM)[-c(1:4)] <- paste("est_grm_diff_", 1:dim(vals_loopM[,-c(1:4)])[2], sep='')
+  vals_loopM$estHurdleRel <- hurdInfo(theta.grid = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1)), a = a, b = b, a_z = a_z, b_z = b_z, muVals = muVals, rhoVal = rhoEst)$out.rel
   vals_loopM$item <- 1:nrow(vals_loopM)
   ## Now add the mirt values
   vals_loop <- merge(vals_loop, vals_loopM, by=c("item"), suffixes = c("", "_MIRT"))
   ## Now obtain the Reliability as assessed via GAM & simulation
-  simVals <- simulate_hurdle_responses_fast(a, b, a_z, b_z, muVals = muVals, varCovMat = matrix(c(1,rhoEst,rhoEst,1), ncol=2), N = 150000, grid_seq = seq(-6, 6, .1))
-
-  ## Now perform the gam regressions
-  tmp.dat <- simVals$theta
-  rel.sev <- mgcv::bam(eapSev ~ s(theta1) + s(theta2), data = tmp.dat)
-  rel.sus <- mgcv::bam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
-  prms.sus <- mgcv::bam(eapSus ~ s(theta1), data = tmp.dat)
-  prms.sev <- mgcv::bam(eapSev ~ s(theta2), data = tmp.dat)
-  vals_loop$estRelSevGam <- summary(rel.sev)$r.sq
-  vals_loop$estRelSusGam <- summary(rel.sus)$r.sq
-  vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
-  vals_loop$estPrmseSusGam <- summary(prms.sus)$r.sq
+  # simVals <- simulate_hurdle_responses(a, b, a_z, b_z, muVals = muVals, varCovMat = matrix(c(1,rhoEst,rhoEst,1), ncol=2), N = 100000)
+  # 
+  # ## Now perform the gam regressions
+  # tmp.dat <- simVals$theta
+  # rel.sev <- mgcv::gam(eapSev ~ s(theta1) + s(theta2), data = tmp.dat)
+  # rel.sus <- mgcv::gam(eapSus ~ s(theta1) + s(theta2), data = tmp.dat)
+  # prms.sus <- mgcv::gam(eapSus ~ s(theta1), data = tmp.dat)
+  # prms.sev <- mgcv::gam(eapSev ~ s(theta2), data = tmp.dat)
+  # vals_loop$estRelSevGam <- summary(rel.sev)$r.sq
+  # vals_loop$estRelSusGam <- summary(rel.sus)$r.sq
+  # vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
+  # vals_loop$estPrmseSusGam <- summary(prms.sus)$r.sq
   
   ## Now do a basic grm model
   mod <- mirt::mirt(data.frame(rep_loop$responses), 1, itemtype = "graded")
-  vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  vals_loop$grmRel <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-6, 6, .1)), dnorm(seq(-6, 6, .1)))))
   # mod <- mirt::mirt(data.frame(rep_loop$responses[-rm.index,]), 1, itemtype = "graded")
   # vals_loop$grmRel_NoZ <-  1 / (1 + (1 / weighted.mean(testinfo(mod, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
   ## Now do the same for only the >0 values
   iso.col <- grep(pattern = "Sev", x = colnames(rep_loop$mplusMat))
   mod.rm <- mirt::mirt(data.frame(rep_loop$mplusMat[,iso.col]), 1, itemtype = "graded")
-  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod.rm, Theta=seq(-5, 5, .1)), dnorm(seq(-5, 5, .1)))))
+  vals_loop$grmRel_rmZeroOption <-  1 / (1 + (1 / weighted.mean(testinfo(mod.rm, Theta=seq(-6, 6, .1)), dnorm(seq(-6, 6, .1)))))
   vals_all <- dplyr::bind_rows(vals_all, vals_loop)
 }
 

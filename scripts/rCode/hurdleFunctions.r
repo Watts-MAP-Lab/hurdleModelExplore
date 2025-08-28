@@ -90,50 +90,49 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   ## This is the susceptibility factor
   # Prep a matrix to store all of the prob of endorsements here
   responseProb2PL = matrix(NA, nrow = N, ncol = length(b_z))
-  for(j in 1:length(a)){
-      p_1 = plogis(q = theta[,1], scale = a_z[j], location = b_z[j])
-      responseProb2PL[,j] = p_1
+  for(i in 1:N){
+    for(j in 1:length(a)){
+      #p = 1 / (1 + exp(-a[j] * (theta[i,1] - b[j])))
+      p_z = 1 - exp(a_z[j] * (theta[i, 1] - b_z[j])) / (1 + exp(a_z[j] * (theta[i, 1] - b_z[j])))
+      p_1 = 1 - p_z
+      responseProb2PL[i,j] = p_1
+    }
   }
   ## Now go through and obtain the response prob from the GRM portion
   initVector <- rep(NA, (N*numItems*(num_categories-1)))
   responseProbGRM = array(initVector, c(N, numItems, (num_categories-1)))
   ## Now go through and 4estimate response probs from the GRM
   for (j in 1:numItems) {
-      aj <- a[j]  # Discrimination parameter for item j
-      bj <- b[j,]  # Threshold parameters for item j
-      # Loop through examinees
-      for (i in 1:(num_categories-1)) {
-        if(i == 1){
-          responseProbGRM[,j,i] = 1 - plogis(theta[,2], location = bj[1], scale = aj)
-        }
-        if(i == (num_categories-1)){
-          responseProbGRM[,j,i] =  plogis(theta[,2], location = bj[i-1], scale = aj)
-        }
-        else if (i != 1 & i != (num_categories-1)){
-          responseProbGRM[,j,i] = plogis(theta[,2], location = bj[i-1], scale = aj) - plogis(theta[,2], location = bj[i], scale = aj)
-        }
+    aj <- a[j]  # Discrimination parameter for item j
+    bj <- b[j,]  # Threshold parameters for item j
+    # Loop through examinees
+    for (i in 1:N) {
+      category_probs <- itemtraceGRM(aj, bj, theta[i,2])  
+      # Generate response based on category probabilities
+      for(k in 1:num_categories-1){
+        responseProbGRM[i, j,k] <- category_probs[k]
       }
+    }
   }
 
   ## Now I need to turn this into response categories
+  ## Now I need to turn this into response categories
   responses = matrix(NA, nrow = N, ncol = numItems)
-  tmp_probs = array(NA, c(N, num_categories, numItems))
-  for( j in 1:numItems){
+  for(i in 1:N){
+    for( j in 1:numItems){
+      ## Create a vector of probabilities
+      tmp_probs <- rep(NA, num_categories)
       for(k in 1:num_categories){
-          if(k == 1){
-              tmp_probs[,k,j] <- 1 - responseProb2PL[,j]
-          }else{
-              tmp_probs[,k,j] <- ((responseProb2PL[,j])) * responseProbGRM[,j,k-1]
-          }
+        if(k == 1){
+          tmp_probs[k] <- 1 - responseProb2PL[i,j]
+        }else{
+          tmp_probs[k] <- ((responseProb2PL[i,j])) * responseProbGRM[i,j,k-1]
+        }
       }
+      responses[i,j] <- sample(1:num_categories, 1,prob = tmp_probs)-1
+    }
   }
-  ## Now sample these responses
-  for(j in 1:numItems){
-    responses[,j] <- apply(tmp_probs[,,j], 1, function(x) {
-      sample(0:(num_categories-1), size = 1, prob = x)
-    })
-  }
-  
+
   ## Now calculate the cross tabs
   responses2 <- data.frame(responses)
   crosstab <- responses2 %>%
@@ -162,22 +161,25 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
   qpoints <- expand.grid(seq(-6, 6, .2), seq(-6, 6, .2))
   prior <- mvtnorm::dmvnorm(qpoints, muVals, varCovMat)
   itemtrace = trace.line.pts(a, b, a_z, b_z, qpoints)
-  theta = data.frame(theta)
+  theta = data.frame(theta1 = theta[,1],
+                     theta2 = theta[,2])
   theta$eapSus <- NA
   theta$eapSev <- NA
-  #theta$mapSus <- NA
-  #theta$mapSev <- NA
+  theta$mapSus <- NA
+  theta$mapSev <- NA
   ## Now loop through every response option as specified in the crosstab
   ## Make a progress bar
   pb <- txtProgressBar(min = 0, max = nrow(crosstab), style = 3) # style = 3 for a full bar
   for(i in 1:nrow(crosstab)){
     pattern <- crosstab[i,1:ncol(crosstab)-1] ## pattern to score
     lhood <- score(pattern, itemtrace, qpoints) ## lik of response 
-    eap2PL_Hurdle <- sum(lhood*prior*qpoints$Var1)/sum(lhood*prior) ## take sum over all values for 2PL model
-    eapGRM_Hurdle <- sum(lhood*prior*qpoints$Var2)/sum(lhood*prior) ## same for GRM model
+    denom <- lhood*prior
+    sum.denom <- sum(denom)
+    eap2PL_Hurdle <- sum(denom*qpoints$Var1)/sum.denom ## take sum over all values for 2PL model
+    eapGRM_Hurdle <- sum(denom*qpoints$Var2)/sum.denom ## same for GRM model
     ## Now do the MAP estimate as well
-    #map2PL_Hurdle <- qpoints[which.max(lhood*prior),1] ## take the median value here
-    #mapGRM_Hurdle <- qpoints[which.max(lhood*prior),2] ## same for GRM
+    map2PL_Hurdle <- qpoints[which.max(denom),1] ## take the median value here
+    mapGRM_Hurdle <- qpoints[which.max(denom),2] ## same for GRM
     ## Now put these estimates into the theta data frame
     ## First identify which rows in responses2 have these same response patterns
     #index <- apply(responses2, 1, function(a) apply(pattern, 1, function(b) all(a==b))) ## for some reason this line of code is very slow
@@ -185,11 +187,10 @@ simulate_hurdle_responses <- function(a, b, a_z, b_z, muVals, varCovMat, N=NULL,
     ## Now assign values
     theta$eapSus[index] <- eap2PL_Hurdle
     theta$eapSev[index] <- eapGRM_Hurdle
-    #theta$mapSus[index] <- map2PL_Hurdle
-    #theta$mapSev[index] <- mapGRM_Hurdle
+    theta$mapSus[index] <- map2PL_Hurdle
+    theta$mapSev[index] <- mapGRM_Hurdle
     setTxtProgressBar(pb, i)
   }
-
   ## Now return everything
   out.data = list(responses = responses, theta = theta, tabs = crosstab,
   a = a, b=b, a_z = a_z, b_z = b_z, muVals = muVals, varCovMat = varCovMat, mplusMat = matrix.mplus)
@@ -611,7 +612,7 @@ eval.dtrace.expr <- function(expr_obj, tvals) {
   out
 }
 
-hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
+hurdInfo <- function(theta.grid = expand.grid(seq(-2, 2, .1), seq(-4, 4, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
   ## I need to estimate the 2PL probs of the function & the information function from the GRM portion
   ## First obtain the 2PL probabilities
   theta2pl_probs_one = trace.line.pts.2PL(a_z, b_z, theta.grid)[[2]]
@@ -626,7 +627,7 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
   out.info <- thetagrm_probs_two
   for(i in 1:length(out.info)){
     out.info[[i]] <- dPdtSQ[,,i] / thetagrm_probs_two[[i]]
-    out.info[[i]] <- out.info[[i]] * theta2pl_probs_one[[i]]
+    #out.info[[i]] <- out.info[[i]] * theta2pl_probs_one[i,]
   }
   ## Now add across these
   out.info.add <- out.info[[1]]
@@ -644,8 +645,15 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-3, 3, .2), seq(-3, 3, .2)), a
     out.info.add <- out.info.add * theta2pl_probs_one
   }
   
+  out.info.add.mult <- out.info.add
+  for(i in 1:nrow(out.info.add)){
+    out.info.add.mult[i,] <- out.info.add[i,] * theta2pl_probs_one[i,]
+  }
+  
+  
   ## Now take the sum of these
-  out.info.sum <- colSums(out.info.add)
+  out.info.sum <- colSums(out.info.add.mult)
+  out.info.sum <- pmax(out.info.sum, 1)
   out.info.sum.inv <- out.info.sum^-1
   varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
   ## Now estimate the rel with these info functions
@@ -791,8 +799,3 @@ estHurdleRelGen <- function(a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .
   return(out.rel)
 }
 
-
-## Now make a function which will obtain the reliability using a simulation
-sim.based.rel <- function(a, b, a_z, b_z, rhoVal, muVals, nSimSamp = 1000, nsim = 100){
-  
-}
