@@ -52,6 +52,7 @@ theta = MASS::mvrnorm(n = N, mu = muVals, Sigma = varCovMat)
 #reps1f = system.time(simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1))))
 reps1 = simulate_hurdle_responses(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta)
 #reps1 = simulate_hurdle_responses_fast(a = a, b = b, a_z = a_z, b_z = b_z1, muVals = muVals, varCovMat = varCovMat, theta = theta, qpoints = expand.grid(seq(-6, 6, .2), seq(-6, 6, .2)))
+## Now run the stan model?
 
 ## Grab the MIRT estimates here
 model <- "
@@ -203,7 +204,22 @@ for(i in 1){
   # vals_loop$estPrmseSevGam <- summary(prms.sev)$r.sq
   # vals_loop$estPrmseSusGam <- summary(prms.sus)$r.sq
   ## Now obtain these using the MIRT methods
-  
+  theta.grid <- as.matrix(expand.grid(seq(-6, 6, .1), seq(-6, 6, .1)))
+  item.vals <- coef(sv1, IRTpars=TRUE, simplify=TRUE)$items
+  item.info <- testinfo(sv1, theta.grid, degrees=c(90,0), individual = TRUE)
+  ## Now make another data frame just for the grm portions w/o the modulation
+  multi.valsA <- NULL
+  for(i in 1:length(a)){
+    ## If a1 != 0 extract item prob
+    item <- extract.item(sv1, i)
+    prob.endorse <- probtrace(item, theta.grid)[,2]
+    ## Now get the equivalent GRM portion info
+    grm.item <- i + length(a)
+    ## NOw multiply these
+    multi.vals <- item.info[,grm.item] * prob.endorse
+    multi.valsA <- cbind(multi.valsA, multi.vals)
+  }
+  vals_loop$mirtHurdleRel <- 1 / (1 + weighted.mean(rowSums(multi.valsA)^-1, dmnorm(muVals, varCovMat, theta.grid)))
   
   
   ## Now do a basic grm model
