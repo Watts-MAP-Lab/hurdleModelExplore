@@ -612,7 +612,7 @@ eval.dtrace.expr <- function(expr_obj, tvals) {
   out
 }
 
-hurdInfo <- function(theta.grid = expand.grid(seq(-2, 2, .1), seq(-4, 4, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
+hurdInfoOG <- function(theta.grid = expand.grid(seq(-2, 2, .1), seq(-4, 4, .2)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
   ## I need to estimate the 2PL probs of the function & the information function from the GRM portion
   ## First obtain the 2PL probabilities
   theta2pl_probs_one = trace.line.pts.2PL(a_z, b_z, theta.grid)[[2]]
@@ -653,7 +653,7 @@ hurdInfo <- function(theta.grid = expand.grid(seq(-2, 2, .1), seq(-4, 4, .2)), a
   
   ## Now take the sum of these
   out.info.sum <- colSums(out.info.add.mult)
-  out.info.sum <- pmax(out.info.sum, 1)
+  #out.info.sum <- pmax(out.info.sum, 1)
   out.info.sum.inv <- out.info.sum^-1
   varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
   ## Now estimate the rel with these info functions
@@ -799,3 +799,51 @@ estHurdleRelGen <- function(a, b, a_z, b_z, thetaVals = expand.grid(seq(-7, 7, .
   return(out.rel)
 }
 
+## Now make a new hurdle information function examining the GRM info but using the hurdle model GRM response probabilities
+hurdInfo <- function(theta.grid = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1)), a, b, a_z, b_z, muVals = c(0,0),rhoVal = .2, h=1e-6, mirtMod = NULL){
+  ## I need to estimate the 2PL probs of the function & the information function from the GRM portion
+  ## First obtain the 2PL probabilities
+  theta2pl_probs_one = trace.line.pts.2PL(a_z, b_z, theta.grid)[[2]]
+  thetagrm_probs_two = trace.line.pts.grm(a, b, theta.grid)
+  ## Now obtain the derivatives for the GRM model
+  
+  #now take the numerical derivative of the GRM functions
+  grm_minus <- theta.grid - 1e-5
+  grm_plus <- theta.grid + 1e-5
+  thetagrm_probs_twoMin = trace.line.pts(a, b, a_z, b_z, grm_minus)
+  thetagrm_probs_twoMax = trace.line.pts(a, b, a_z, b_z, grm_plus)
+  thetagrm_probs_base = trace.line.pts(a, b, a_z, b_z, theta.grid)
+  ## Now take the difference across each of these
+  new.deriv <- thetagrm_probs_two
+  index <- 1
+  for(i in 2:length(thetagrm_probs_twoMax)){
+    new.deriv[[index]] <- (thetagrm_probs_twoMax[[i]] - thetagrm_probs_twoMin[[i]]) / (2 * 1e-5)
+    index <- index + 1
+  }
+  new.derivsq <- new.deriv
+  for(i in 1:length(new.derivsq)){
+    new.derivsq[[i]] <- new.derivsq[[i]]^2
+  }
+  out.info <- thetagrm_probs_two
+  for(i in 1:length(out.info)){
+    plus.index <- i + 1
+    out.info[[i]] <- new.derivsq[[i]] / thetagrm_probs_base[[plus.index]]
+  }
+  
+  ## Now add across these
+  out.info.add <- out.info[[1]]
+  for(i in 2:length(out.info)){
+    out.info.add <- out.info.add + out.info[[i]]
+  }
+  
+  ## Now take the sum of these
+  out.info.sum <- colSums(out.info.add)
+  out.info.sum.inv <- out.info.sum^-1
+  varCovMat = matrix(c(1,rhoVal,rhoVal,1), ncol=2)
+  ## Now estimate the rel with these info functions
+  out.rel <- 1 / (1 + weighted.mean(out.info.sum.inv, mvtnorm::dmvnorm(theta.grid, muVals, varCovMat)))
+  out.list = list(out.rel = out.rel,
+                  test.info = out.info.sum,
+                  item.info = out.info)
+  return(out.list)
+}
