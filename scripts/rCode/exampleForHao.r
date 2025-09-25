@@ -10,12 +10,13 @@ sim_mirt_hurdle <- function(a, b, a_z, b_z, rho, THETA = NULL,
   require(dplyr)
   
   # Generate bivariate normal theta values if not provided
+  muVals <- rep(0, 2)  # Mean of 0 for both dimensions
+  varCovMat <- matrix(c(1, rho, rho, 1), ncol = 2)  # Correlation matrix
   # THETA represents latent traits: column 1 = susceptibility, column 2 = severity
   if (!is.null(N) & is.null(THETA)) {
-    muVals <- rep(0, 2)  # Mean of 0 for both dimensions
-    varCovMat <- matrix(c(1, rho, rho, 1), ncol = 2)  # Correlation matrix
     THETA <- MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
   }
+  
   
   # Set up item parameter matrices for mirt
   # Total items = 2 * number of hurdle items (2PL + corresponding graded response)
@@ -214,8 +215,9 @@ genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var =
 ## Now run this function
 ## First generate all of the inputs
 n_items = 14
+num_cat = 4
 a = runif(n_items, min = .8, max = 2)
-b = genDiffGRM(num_items = n_items, num_categories = 3, min = -2, max = 1)
+b = genDiffGRM(num_items = n_items, num_categories = num_cat, min = -2, max = 1)
 a_z = runif(n_items, min = .8, max = 2)
 b_z = runif(n_items, min = 0, max = 2)
 N = 15000
@@ -225,12 +227,12 @@ varCovMat = matrix(c(1,rho,rho,1), ncol=2)
 THETA = MASS::mvrnorm(N, mu = muVals, Sigma = varCovMat)
 ## Convert from trad to mirt here
 pl2_conv <- apply(cbind(a_z, b_z, 0,0), 1, function(x)traditional2mirt(x, cls="2PL", ncat=2) )
-grm_conv <- apply(cbind(a, b), 1, function(x)traditional2mirt(x, cls="graded", ncat=3) )
+grm_conv <- apply(cbind(a, b), 1, function(x)traditional2mirt(x, cls="graded", ncat=num_cat) )
 ## Now reassign
 a_z <- pl2_conv["a1",]
 b_z <- pl2_conv["d",]
 a <- grm_conv["a1",]
-b <- cbind(grm_conv[3,], grm_conv[2,])
+b <- t(apply(grm_conv[-1,], 2, function(x) sort(x, decreasing=TRUE)))
 sim_vals = sim_mirt_hurdle(a = a, b = b, a_z = a_z, b_z = b_z, rho = .4, THETA=THETA)
 var(sim_vals$theta_vals)
 true.score.var <- var(sim_vals$theta_vals$trueSev)
@@ -250,32 +252,40 @@ for(i in 1:nrow(out.plot)){
 }
 plot(out.plot)
 
-## Now generate these responses for mean theta values
-sus.vals <- c(-1, 0, 1)
-sev.vals <- c(-1, 0, 1)
-all.iter <- expand.grid(sus.vals, sev.vals)
-all.iter <- data.frame(all.iter)
+## Now generate responses for fixed theta values
+sus.vals <- c(-1, 0, 1) ## fixed 2PL portion 
+sev.vals <- c(-1, 0, 1) ## fixed GRM portion
+theta_grid = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1)) ## used for EAP values
+all.iter <- expand.grid(sus.vals, sev.vals) ## Create all permutations of sus & sev traits
+all.iter <- data.frame(all.iter) ## used to store varaince output
 all.iter$simVar <- NA
 all.iter$testInfoVar <- NA
-b_z <- runif(n = n_items, min= 0, max = 2)
-a_z <- rep(3, n_items)
-b_z <- runif(n_items, min=-1, max = 1) ## Generate n.item 2PL discrimination parameters randomly sampled between -2 & 0
+## Now create the model parameters
+n_items = 14
+num_cat = 4
+a = runif(n_items, min = .8, max = 2)
+b = genDiffGRM(num_items = n_items, num_categories = num_cat, min = -2, max = 1)
+a_z = runif(n_items, min = .8, max = 2)
+b_z = runif(n_items, min = 0, max = 2)
+## Convert from trad to mirt here
 pl2_conv <- apply(cbind(a_z, b_z, 0,0), 1, function(x)traditional2mirt(x, cls="2PL", ncat=2) )
+grm_conv <- apply(cbind(a, b), 1, function(x)traditional2mirt(x, cls="graded", ncat=num_cat) )
+## Now reassign
 a_z <- pl2_conv["a1",]
 b_z <- pl2_conv["d",]
-theta_grid = expand.grid(seq(-6, 6, .1), seq(-6, 6, .1))
+a <- grm_conv["a1",]
+b <- t(apply(grm_conv[-1,], 2, function(x) sort(x, decreasing=TRUE)))
 for(i in 1:nrow(all.iter)){
   THETA = matrix(c(all.iter[i,1],all.iter[i,2]), nrow=300000, ncol = 2, byrow = TRUE)
   ## Now generate the response values
   sim_vals = sim_mirt_hurdle(a = a, b = b, a_z = a_z, b_z = b_z, rho = .4, THETA=THETA, theta_grid = theta_grid)
   ident_var = which(theta_grid[,1]==all.iter[i,1] & theta_grid[,2]==all.iter[i,2])
-  ## Examine simulated variance
+  ## grab simulated variance
   all.iter$simVar[i] <- var(sim_vals$theta_vals)[4,4]
   ## Now obtain variance from test information function
   all.iter$testInfoVar[i] <- sim_vals$tru_hurd_test_info[ident_var]^-1
 }
 ## Now plot this
-library(ggplot2)
 for.plot <- reshape2::melt(all.iter, id.vars=c("Var1", "Var2"))
 ggplot(for.plot, aes(x=variable, y = value)) +
   geom_bar(stat="identity", position="dodge") +
