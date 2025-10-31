@@ -140,6 +140,9 @@ vals_loop$trueVarRel <- true.score.var / (true.score.var + error.var)
 mod_grm <- mirt::mirt(as.data.frame(reps1$responses), 1, itemtype = "graded")
 vals_loop$grmRel <- grm_reliability_emp(mod_grm, method = "EAP")
 
+# Estimated hurdle model
+vals_loop$estInfoRel <- severity_reliability_GH(sv1)$rho
+
 # Remove structural zeros by selecting graded-only columns (>0)
 iso.col <- (n_items + 1):ncol(reps1$responses_na)
 mod_rm  <- mirt::mirt(as.data.frame(reps1$responses_na[, iso.col, drop = FALSE]), 1, itemtype = "graded")
