@@ -79,8 +79,36 @@ Sigma_pop <- matrix(c(1, rho, rho, 1), ncol = 2)
 theta     <- MASS::mvrnorm(n = N, mu = c(0, 0), Sigma = Sigma_pop)
 
 # Simulate with your hurdle function (fixed-parameter true model)
-reps1 <- suppressWarnings(sim_mirt_hurdle(a_m, d_m, a_z_m, d_z_m, rho = rho,
-                                          THETA = theta, N = N))
+# reps1 <- suppressWarnings(sim_mirt_hurdle(a_m, d_m, a_z_m, d_z_m, rho = rho,
+#                                            THETA = theta, N = N))
+reps1Fun = TRUE
+while_count = 1
+while(reps1Fun){
+  reps1 = tryCatch(
+    suppressWarnings(sim_mirt_hurdle(a_m, d_m, a_z_m, d_z_m, rho = rho,
+                                     THETA = theta, N = N)),
+    error = function(e) {
+      message(e$message)
+    }
+  )
+  if(is.null(reps1)){
+    reps1Fun = TRUE
+    b_grm <- genDiffGRM(num_items = n_items, num_categories = n_cat,
+                        min = all.sim.vals$difGrmF[seedVal]+1,
+                        max = all.sim.vals$difGrmF[seedVal] + 4.5,
+                        rnorm_var = 0.4)
+    # Convert to mirt parameterization
+    mirt_pars <- to_mirt(a_grm, b_grm, a_2pl, b_2pl, n_cat)
+    a_m   <- mirt_pars$a_m
+    d_m   <- mirt_pars$d_m
+    a_z_m <- mirt_pars$a_z_m
+    d_z_m <- mirt_pars$d_z_m
+  }else{
+    reps1Fun = FALSE
+    print(while_count)
+  }
+}
+
 
 # Fit an estimated hurdle model (sv1) to the NA-ed responses (this uses estimation;
 # if you want scoring-only with true parameters, you can skip this and use reps1$tru_mod)

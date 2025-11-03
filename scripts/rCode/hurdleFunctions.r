@@ -90,6 +90,7 @@ sim_mirt_hurdle <- function(a, d, a_z, d_z, rho, THETA = NULL,
   # Simulate item responses
   sim_vals <- simdata(a = a_mat, d = d_mat, #sigma = varCovMat, 
                       Theta = THETA, itemtype = item_type)
+
   theta_grid_mat <- as.matrix(theta_grid)
   
   # Apply hurdle mechanism: set graded responses to NA when 2PL item = 0
@@ -98,6 +99,11 @@ sim_mirt_hurdle <- function(a, d, a_z, d_z, rho, THETA = NULL,
   grm_dat <- sim_vals[, grm_vec]           # Graded responses (severity component)
   grm_dat[pl2_dat == 0] <- NA              # Missing if didn't endorse hurdle item
   sim_vals_w_na <- bind_cols(pl2_dat, grm_dat)
+  ## Ensure all response options have at least 1 endorsment
+  if(length(unique(apply(sim_vals_w_na[,grm_vec], 2, function(x) length(table(x)))) )>1){
+    ## Flag error status
+    stop("Difficulty intercepts provided null endorsment pattern")
+  }
   
   # Create mirt model specification string
   # F1 = susceptibility factor, F2 = severity factor, COV = their correlation
@@ -128,10 +134,48 @@ sim_mirt_hurdle <- function(a, d, a_z, d_z, rho, THETA = NULL,
   pars_df$est[pars_df$name == "d"] <- FALSE
   
   # Graded response difficulty parameters
+  ## First make sure every response has the proper number of rows
+  grm_df_vals = paste("d", 1:ncol(d), sep='')
+  count_vals = table(pars_df$name)
   for (i in 1:ncol(d)) {
     d_val <- paste("d", i, sep = '')
     pars_df$value[pars_df$name == d_val] <- d[, i]
     pars_df$est[pars_df$name == d_val] <- FALSE
+  }
+  ## Check for equality
+  if(length(unique(count_vals[grm_df_vals]))>1){
+    ## First isolate the rows that are stable
+    stable_pre = pars_df[which(pars_df$class=="dich"),]
+    stable_post = pars_df[which(pars_df$class=="GroupPars"),]
+    ## Now grab the rows to be modified
+    unstable_mod = pars_df[which(pars_df$class=="graded"),]
+    ## Find the best candidate template
+    full_candidate = c("a1", "a2", grm_df_vals)
+    ## Find the lowest value with the full length parameter set
+    full_candidate = names(which(table(unstable_mod$item) == length(full_candidate))[1])
+    ## Now grab the prototype item set
+    prototype = unstable_mod[which(unstable_mod$item==full_candidate),]
+    ## First find the proper number of rows
+    prop_nrow = nrow(prototype)
+    ## Repeat the prototype the total number of GRM items
+    rep_count = length(unique(unstable_mod$item))
+    # Repeat the data frame n times
+    prototype <- prototype[rep(seq_len(prop_nrow), times = rep_count), ]
+    ## Now fix the item names
+    prototype$item = rep(unique(names(table(unstable_mod$item))), each = prop_nrow)
+    ## Now fix the slope & intercept values
+    grm_df_vals = paste("d", 1:ncol(d), sep='')
+    for (i in 1:ncol(d)) {
+      d_val <- paste("d", i, sep = '')
+      prototype$value[prototype$name == d_val] <- d[, i]
+      prototype$est[prototype$name == d_val] <- FALSE
+    }
+    ## Now do slopes
+    # Graded response discrimination parameters (Factor 2)  
+    prototype$value[prototype$name == "a2"] <- a
+    ## Now recombine everything and fix parnums
+    pars_df <- bind_rows(stable_pre, prototype, stable_post)
+    pars_df$parnum = 1:nrow(pars_df)
   }
   
   # Factor correlation
