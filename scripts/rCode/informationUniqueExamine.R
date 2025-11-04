@@ -5,6 +5,8 @@ suppressPackageStartupMessages(library(mirt))
 suppressPackageStartupMessages(library(psych))
 suppressPackageStartupMessages(library(mgcv))
 suppressPackageStartupMessages(library(MASS))   # mvrnorm
+suppressPackageStartupMessages(library(cubature))   # mvrnorm
+
 
 ##### --declare-sim-params-------
 source("./scripts/rCode/simParam.r")
@@ -60,12 +62,12 @@ a_grm <- runif(n_items, min = all.sim.vals$grmDiscrim[seedVal],
                max = all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
 b_grm <- genDiffGRM(num_items = n_items, num_categories = n_cat,
                     min = all.sim.vals$difGrmF[seedVal],
-                    max = all.sim.vals$difGrmF[seedVal] + 2.5,
+                    max = all.sim.vals$difGrmF[seedVal] + 4,
                     rnorm_var = 0.3)
 a_2pl <- runif(n_items, min = all.sim.vals$discrim2pl[seedVal],
                max = all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 b_2pl <- runif(n_items, min = all.sim.vals$dif2PL[seedVal],
-               max = all.sim.vals$dif2PL[seedVal] + 2.0)
+               max = all.sim.vals$dif2PL[seedVal] + 3.0)
 
 # Convert to mirt parameterization
 mirt_pars <- to_mirt(a_grm, b_grm, a_2pl, b_2pl, n_cat)
@@ -151,6 +153,7 @@ if (!inherits(omega.sem.val, "try-error")) {
 
 # MAP-based hurdle reliability via GH (true model with fixed parameters)
 vals_loop$trueInfoRel <- severity_reliability_GH(sv2 = reps1$tru_mod)$rho
+vals_loop$trueInfoRel2 <- severity_reliability(sv2 = reps1$tru_mod)$Rel
 
 # Smoother-based empirical reliability (uses true thetas and MAP scores)
 tmp.dat <- reps1$theta_vals 
@@ -170,6 +173,8 @@ vals_loop$grmRel <- grm_reliability_emp(mod_grm, method = "EAP")
 
 # Estimated hurdle model
 vals_loop$estInfoRel <- severity_reliability_GH(sv1)$rho
+vals_loop$estInfoRel2 <- severity_reliability(sv2 = reps1$tru_mod)$Rel
+
 
 # Remove structural zeros by selecting graded-only columns (>0)
 iso.col <- (n_items + 1):ncol(reps1$responses_na)
