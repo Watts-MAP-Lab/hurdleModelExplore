@@ -31,6 +31,34 @@ genDiffGRM <- function(num_items=20, num_categories=5, min=0, max=2, rnorm_var =
  return(out.mat)
 }
 
+genDiffGRM <- function(num_items = 20, num_categories = 5, min = 0, max = 2, min_gap = 0.15) {
+  stopifnot(num_categories >= 2)
+  num_dif <- num_categories - 1
+  
+  # Generate as in your original function
+  diffs <- t(apply(matrix(runif(num_items * num_dif, min = min, max = max), num_items), 1, cumsum))
+  diffs <- -(diffs - rowMeans(diffs))
+  
+  # Enforce minimum spacing between adjacent thresholds
+  out <- matrix(NA_real_, nrow = num_items, ncol = num_dif)
+  for (i in seq_len(num_items)) {
+    inc <- sort(diffs[i, ], decreasing = FALSE)
+    gaps <- diff(inc)
+    cur_min_gap <- min(gaps)
+    
+    if (is.finite(cur_min_gap) && cur_min_gap < min_gap) {
+      # Scale around the mean so that all gaps are increased proportionally
+      m <- mean(inc)
+      scale_factor <- min_gap / cur_min_gap
+      inc <- (inc - m) * scale_factor + m
+    }
+    
+    out[i, ] <- sort(inc, decreasing = TRUE)
+  }
+  
+  out
+}
+
 ## Create a function here which will return all of the probs from a GRM model
 itemtraceGRM <- function(a, b, theta){
     num_categories = length(b) + 1
@@ -99,7 +127,12 @@ sim_mirt_hurdle <- function(a, d, a_z, d_z, rho, THETA = NULL,
   grm_dat <- sim_vals[, grm_vec]           # Graded responses (severity component)
   grm_dat[pl2_dat == 0] <- NA              # Missing if didn't endorse hurdle item
   sim_vals_w_na <- bind_cols(pl2_dat, grm_dat)
-  ## Ensure all response options have at least 1 endorsment
+  ## NOw make the observed test score responses
+  obs_dat = grm_dat
+  obs_dat[is.na(obs_dat)] <- 0
+  obs_dat = obs_dat + pl2_dat
+  
+  ## Ensure all response options have at least 1 endorsement
   if(length(unique(apply(sim_vals_w_na[,grm_vec], 2, function(x) length(table(x)))) )>1){
     ## Flag error status
     stop("Difficulty intercepts provided null endorsment pattern")
@@ -224,7 +257,8 @@ sim_mirt_hurdle <- function(a, d, a_z, d_z, rho, THETA = NULL,
     test_info_2pl = test_info_2pl,
     grm_info = item_info,
     responses = sim_vals, 
-    responses_na = sim_vals_w_na
+    responses_na = sim_vals_w_na,
+    obs_responses = obs_dat
     #      out_rel = out.rel
   )
   #  }
@@ -636,4 +670,12 @@ grm_reliability_emp <- function(mod, method = "EAP") {
     info  <- as.numeric(testinfo(mod, Theta = Theta))
     return(1 / (1 + weighted.mean(1 / info, dnorm(Theta))))
   }
+}
+
+## Function to estimate reliability from non linear regression
+severity_reliability <- function(sv2, Sigma_prior = diag(2), bounds = cbind(c(-5, -5), c(5, 5))) {
+  Eg  <- E_g_integral(sv2, Sigma_prior, bounds)
+  Eg2 <- E_g2_integral(sv2, Sigma_prior, bounds)
+  Rel = 1 - Eg2
+  list(Eg = Eg, Eg2= Eg2, Rel = Rel)
 }

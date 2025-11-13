@@ -7,7 +7,6 @@ suppressPackageStartupMessages(library(mgcv))
 suppressPackageStartupMessages(library(MASS))   # mvrnorm
 suppressPackageStartupMessages(library(cubature))   # mvrnorm
 
-
 ##### --declare-sim-params-------
 source("./scripts/rCode/simParam.r")
 seedVal <- as.integer(commandArgs(TRUE))
@@ -62,8 +61,8 @@ a_grm <- runif(n_items, min = all.sim.vals$grmDiscrim[seedVal],
                max = all.sim.vals$grmDiscrim[seedVal] + add.val.grm)
 b_grm <- genDiffGRM(num_items = n_items, num_categories = n_cat,
                     min = all.sim.vals$difGrmF[seedVal],
-                    max = all.sim.vals$difGrmF[seedVal] + 4,
-                    rnorm_var = 0.3)
+                    max = all.sim.vals$difGrmF[seedVal] + 3,
+                    min_gap = 0.25)
 a_2pl <- runif(n_items, min = all.sim.vals$discrim2pl[seedVal],
                max = all.sim.vals$discrim2pl[seedVal] + add.val.2pl)
 b_2pl <- runif(n_items, min = all.sim.vals$dif2PL[seedVal],
@@ -96,15 +95,16 @@ while(reps1Fun){
   if(is.null(reps1)){
     reps1Fun = TRUE
     b_grm <- genDiffGRM(num_items = n_items, num_categories = n_cat,
-                        min = all.sim.vals$difGrmF[seedVal]+1,
-                        max = all.sim.vals$difGrmF[seedVal] + 4.5,
-                        rnorm_var = 0.4)
-    # Convert to mirt parameterization
+                        min = all.sim.vals$difGrmF[seedVal],
+                        max = all.sim.vals$difGrmF[seedVal] + 3,
+                        min_gap = 0.25)
+    # Convert to mirt param
     mirt_pars <- to_mirt(a_grm, b_grm, a_2pl, b_2pl, n_cat)
     a_m   <- mirt_pars$a_m
     d_m   <- mirt_pars$d_m
     a_z_m <- mirt_pars$a_z_m
     d_z_m <- mirt_pars$d_z_m
+    while_count = while_count + 1
   }else{
     reps1Fun = FALSE
     print(while_count)
@@ -124,7 +124,7 @@ sv1 <- mirt(as.data.frame(reps1$responses_na), model = model_str, itemtype = ite
 vals_loop <- data.frame(seed = seedVal)
 
 # Classic reliability metrics (alpha, omega, etc.) on full responses (no hurdle NA)
-test_dat <- as.data.frame(reps1$responses)
+test_dat <- as.data.frame(reps1$obs_responses)
 cor.mat  <- psych::polychoric(test_dat)
 rel.all  <- psych::reliability(cor.mat$rho, n.obs = N, nfactors = 3, plot = FALSE)
 
@@ -153,7 +153,6 @@ if (!inherits(omega.sem.val, "try-error")) {
 
 # MAP-based hurdle reliability via GH (true model with fixed parameters)
 vals_loop$trueInfoRel <- severity_reliability_GH(sv2 = reps1$tru_mod)$rho
-vals_loop$trueInfoRel2 <- severity_reliability(sv2 = reps1$tru_mod)$Rel
 
 # Smoother-based empirical reliability (uses true thetas and MAP scores)
 tmp.dat <- reps1$theta_vals 
@@ -167,14 +166,19 @@ true.score.var <- var(reps1$theta_vals$trueSev)
 error.var <- var(reps1$theta_vals$truP_sevMAP - reps1$theta_vals$trueSev)
 vals_loop$trueVarRel <- true.score.var / (true.score.var + error.var)
 
+# Marginal reliability via MSE against truth (conservative; includes bias)
+MSE_single <- mean((reps1$theta_vals$truP_sevMAP - reps1$theta_vals$trueSev)^2, na.rm = TRUE)
+vals_loop$trueMSERel <- rel_sim_mse <- 1 - MSE_single / true.score.var
+## Now try the correlation methods
+vals_loop$rel_corr2 <- cor(reps1$theta_vals$truP_sevMAP, reps1$theta_vals$trueSev, use = "pairwise.complete.obs")^2
+vals_loop$rel_corr2s <- cor(reps1$theta_vals$truP_sevMAP, reps1$theta_vals$trueSev, use = "pairwise.complete.obs", method="s")^2
+
 # GRM models for comparison (all items; and excluding zeros)
-mod_grm <- mirt::mirt(as.data.frame(reps1$responses), 1, itemtype = "graded")
+mod_grm <- mirt::mirt(as.data.frame(reps1$obs_responses), 1, itemtype = "graded")
 vals_loop$grmRel <- grm_reliability_emp(mod_grm, method = "EAP")
 
 # Estimated hurdle model
 vals_loop$estInfoRel <- severity_reliability_GH(sv1)$rho
-vals_loop$estInfoRel2 <- severity_reliability(sv2 = reps1$tru_mod)$Rel
-
 
 # Remove structural zeros by selecting graded-only columns (>0)
 iso.col <- (n_items + 1):ncol(reps1$responses_na)
