@@ -741,9 +741,10 @@ model <- list(
   ~ grmInt
 )
 library(mcp)
-mod <- mcp(model, data = plot.vals, cores = 3)
+future::plan(future::multisession, workers = 3)  # run chains in parallel
+mod <- mcp(model, data = plot.vals)
 model <- list(
   pl2Ext ~ 1 + pl2Int,
   ~ pl2Int
 )
-mod2 <- mcp(model, data = plot.vals, cores = 3)
+mod2 <- mcp(model, data = plot.vals)
